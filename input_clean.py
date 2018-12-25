@@ -2,6 +2,8 @@ import csv
 # from datetime import datetime, timedelta
 import datetime as dt
 from matplotlib import pyplot as plt
+import glob
+import pandas as pd
 
 filename = 'Houston_tx_hobby_2010-2017.csv'
 
@@ -20,7 +22,7 @@ with open(filename) as f:
     for row in reader:
         if row[6] == 'FM-15':
             try:
-                date_obs = datetime.strptime(row[5], "%Y-%m-%d %H:%M")
+                date_obs = dt.datetime.strptime(row[5], "%Y-%m-%d %H:%M")
                 drybulb_temp = int(row[10])
                 relative_humidity = int(row[16])
 
@@ -38,9 +40,6 @@ weather = pd.DataFrame({'Hour_End': dates,
 weather = weather.groupby(weather['Hour_End'].dt.date, weather['Hour_End'].dt.hour)[['Drybulb', 'Humidity']].mean()
 
 # import actual load including profiles from two business and residential profiles
-
-import glob
-import pandas as pd
 
 aggregate_load = pd.DataFrame()
 for f in glob.glob('ERCOT_load_profiles/*native*.csv'):
