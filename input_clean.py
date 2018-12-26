@@ -4,6 +4,7 @@ import datetime as dt
 from matplotlib import pyplot as plt
 import glob
 import pandas as pd
+import numpy as np
 
 filename = 'Houston_tx_hobby_2010-2017.csv'
 
@@ -37,7 +38,15 @@ with open(filename) as f:
 weather = pd.DataFrame({'Hour_End': dates,
                         'Drybulb': drybulb,
                         'Humidity': humidity})
-weather = weather.groupby(weather['Hour_End'].dt.date, weather['Hour_End'].dt.hour)[['Drybulb', 'Humidity']].mean()
+
+# groupby keys have to be hashable
+weather['Date'] = weather['Hour_End'].dt.date
+weather['Hour'] = weather['Hour_End'].dt.hour
+weather_grouped = weather.groupby(['Date', 'Hour'])
+weather_hr = weather_grouped.agg({'Drybulb': np.average, 'Humidity': np.average})
+weather_hr = weather_hr.reset_index()
+weather_hr.plot(x='Date', y='Drybulb')
+plt.show()
 
 # import actual load including profiles from two business and residential profiles
 
@@ -69,13 +78,5 @@ aggregate_load['Hour_End'] = pd.to_datetime(aggregate_load['Hour_End'])
 aggregate_load.plot(x='Hour_End', y='ERCOT')
 plt.show()
 
-# create datetime series
 
-# dt = datetime(2010, 1, 1, 0)
-# end_dt = datetime(2017, 12, 31, 23)
-# step = timedelta(hours=1)
-# time_seq = []
-# while dt <= end_dt:
-#     time_seq.append(dt)
-#     dt += step
 
