@@ -219,6 +219,11 @@ plt.show()
 model.evaluate(test_data, test_target)
 
 # using recurrent network
+from keras import models
+from keras import layers
+import os
+
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 joined_keep = joined_keep.dropna()
 joined_keep['COAST'] = joined_keep['COAST'] / 1000
 joined_keep = joined_keep.values  # turn into numpy array
@@ -241,7 +246,7 @@ def generator(data, lookback, delay, min_index,
         for j, row in enumerate(rows):
             indices = range(rows[j] - lookback, rows[j])
             samples[j] = data[indices]
-            targets[j] = data[rows[j] + delay][1]
+            targets[j] = data[rows[j] + delay][0]
         yield samples, targets
 
 lookback = 336
@@ -283,10 +288,10 @@ def build_model2():
 
 model2 = build_model2()
 history = model2.fit_generator(train_gen,
-                              steps_per_epoch=500,
+                              steps_per_epoch=50,
                               epochs=5,
                               validation_data=val_gen,
-                              validation_steps=val_steps)
+                               validation_steps=50)
 
 loss = history.history['loss']
 val_loss = history.history['val_loss']
@@ -308,6 +313,9 @@ plt.show()
 # 4 provide list of holidays
 # 5 compare with other neural network configurations
 
-
-
+predictions = model2.predict_generator(test_gen, steps=50)
+plt.plot(range(1000), predictions[:1000], 'r', label='test predictions', alpha=0.2)
+plt.xticks(rotation=90)
+plt.legend()
+plt.show()
 
