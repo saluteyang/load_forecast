@@ -76,6 +76,7 @@ aggregate_load = pd.DataFrame()
 #
 # aggregate_load['Hour_End'] = pd.to_datetime(aggregate_load['Hour_End'])
 # aggregate_load.iloc[:, 1:10].astype('float')
+# aggregate_load.to_csv('test.csv', index=False)
 ##########
 # above will fail initially as there is 24 in the hour string in the 2017 file
 # there is also a thousands separator inside numbers in that file that causes parsing problems
@@ -86,20 +87,22 @@ aggregate_load = pd.DataFrame()
 # set(aggregate_load['Hour'])
 # aggregate_load[aggregate_load['Hour'] == '24']
 
-# start here to import processed data
+# start here to import processed data, if using other profiles skip this section #####################
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
+aggregate_load['COAST'] = aggregate_load['COAST']/1000
 
 # plot time series with matplotlib
-
 aggregate_load.plot(x='Hour_End', y='ERCOT')
 plt.show()
 
 # join weather and load information
-
-weather_hr = weather_hr.set_index('Hour_End')
 aggregate_load = aggregate_load.set_index('Hour_End')
 aggregate_load.index = pd.to_datetime(aggregate_load.index)
+
+# section end, joining weather and load data begins below ##############################################
+
+weather_hr = weather_hr.set_index('Hour_End')
 joined = aggregate_load.join(weather_hr, how='inner')
 
 joined[['COAST', 'Drybulb', 'Humidity']].corr()
@@ -112,7 +115,7 @@ lm.summary()
 joined.plot(x='Drybulb', y='COAST', kind='scatter')
 plt.show()
 
-len(joined.index.unique())  # duplicate index due to additional hour in Nov due to DST
+# len(joined.index.unique())  # duplicate index due to additional hour in Nov due to DST
 
 joined = joined.groupby(joined.index).first()
 joined_keep = joined[['COAST', 'Drybulb', 'Humidity']].copy()
@@ -155,7 +158,6 @@ joined_keep = joined_keep.dropna()
 joined_keep = joined_keep.drop(columns=['Date', 'COAST_DailyAve', 'Wknd_Flag', 'Holiday_Flag'])
 joined_keep_float = joined_keep.drop(columns=['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity'])
 joined_keep_int = joined_keep[['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']]
-joined_keep_float = joined_keep_float/1000
 joined_keep_int = joined_keep_int.astype('int')
 joined_clean = joined_keep_float.merge(joined_keep_int, left_index=True, right_index=True)
 
@@ -247,7 +249,6 @@ batch_size = 168  # 7 days in each batch
 # model2: using recurrent network
 
 joined_keep = joined_keep.dropna()
-joined_keep['COAST'] = joined_keep['COAST'] / 1000
 joined_keep = joined_keep.values  # turn into numpy array
 
 train_gen = generator(joined_keep,
@@ -313,7 +314,6 @@ model2.evaluate_generator(test_gen, steps=55)
 # model3: using LSTM instead of GRU and increasing epochs
 
 joined_keep = joined_keep.dropna()
-joined_keep['COAST'] = joined_keep['COAST'] / 1000
 joined_keep = joined_keep.values  # turn into numpy array
 
 train_gen = generator(joined_keep,
@@ -388,7 +388,6 @@ joined_keep = joined_keep.dropna()
 joined_keep = joined_keep.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
 joined_keep_float = joined_keep.drop(columns=['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity'])
 joined_keep_int = joined_keep[['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']]
-joined_keep_float = joined_keep_float/1000
 joined_keep_int = joined_keep_int.astype('int')
 joined_keep = joined_keep_float.merge(joined_keep_int, left_index=True, right_index=True)
 joined_keep = joined_keep.values
@@ -466,7 +465,6 @@ joined_keep = joined_keep.dropna()
 joined_keep = joined_keep.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
 joined_keep_float = joined_keep.drop(columns=['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity'])
 joined_keep_int = joined_keep[['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']]
-joined_keep_float = joined_keep_float/1000
 joined_keep_int = joined_keep_int.astype('int')
 joined_keep = joined_keep_float.merge(joined_keep_int, left_index=True, right_index=True)
 joined_keep = joined_keep.values
