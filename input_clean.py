@@ -87,7 +87,7 @@ aggregate_load = pd.DataFrame()
 # set(aggregate_load['Hour'])
 # aggregate_load[aggregate_load['Hour'] == '24']
 
-# start here to import processed data, if using other profiles skip this section #####################
+# start here to import processed data, if using other profiles, run section in profile_proc.py ###############
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
 aggregate_load['COAST'] = aggregate_load['COAST']/1000
@@ -212,6 +212,8 @@ plt.show()
 model.evaluate(test_data, test_target)
 
 # results: mae on training 0.4993, on validation 0.6769, on test 0.5430
+# results: mae on training 0.2608, on validation 0.3438, on test 0.3932 (busmed)
+# results: mae on training 0.0599, on validation 0.0494, on test 0.0552 (reslo)
 
 # start here for all the RNN models and then run the specific code under each #########################
 # generators for training, validation and test sets
