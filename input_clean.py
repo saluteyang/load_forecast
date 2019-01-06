@@ -344,10 +344,15 @@ def build_model2():
     return model
 
 ###########################################
+partial_train_data = train_data[10000:]
+val_data = train_data[:10000]
+partial_train_target = train_target[10000:]
+val_target = train_target[:10000]
+
 partial_train_data = partial_train_data.values
 partial_train_target = partial_train_target.values[:-336]
-# test_data = test_data.values
-# test_target = test_target.values
+test_data = test_data.values
+test_target = test_target.values[:-336]
 val_data = val_data.values
 val_target = val_target.values[:-336]
 
@@ -369,6 +374,16 @@ for j, row in enumerate(rows):
     indices = range(rows[j] - 336, rows[j])
     val_data_3d[j] = val_data[indices]
 
+# redimension test data
+rows = np.arange(336, test_data.shape[0])
+test_data_3d = np.zeros((len(rows),
+                        336,
+                        test_data.shape[1]))
+for j, row in enumerate(rows):
+    indices = range(rows[j] - 336, rows[j])
+    test_data_3d[j] = test_data[indices]
+
+
 def build_model_corrected():
     model = models.Sequential()
     model.add(layers.GRU(64, input_shape=(None, train_data.shape[-1])))
@@ -379,9 +394,35 @@ def build_model_corrected():
 model_corrected = build_model_corrected()
 history = model_corrected.fit(partial_train_data_3d,
                               partial_train_target,
-                              epochs=1, batch_size=168,
+                              epochs=30, batch_size=168,
                               validation_data=(val_data_3d,
                                                val_target))
+
+loss = history.history['loss']
+val_loss = history.history['val_loss']
+history_dict = history.history
+epochs = range(1, len(history_dict['loss']) + 1)
+
+plt.plot(epochs[2:], loss[2:], 'bo', label='training loss')  # blue dot
+plt.plot(epochs[2:], val_loss[2:], 'b', label='validation loss')
+plt.title('training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+predictions = model_corrected.predict(test_data_3d)
+plt.plot(range(1000), predictions[:1000], 'r', label='test predictions', alpha=0.2)
+plt.plot(range(1000), test_target[:1000], 'b', label='test actual', alpha=0.2)
+plt.xticks(rotation=90)
+plt.legend()
+plt.show()
+
+model_corrected.evaluate(test_data_3d, test_target)
+
+# results: mae on training 0.4560, on validation 0.3930, on test 0.4813 (20 epochs)
+# results: mae on training 0.4707, on validation 0.6406, on test 0.8391 (30 epochs)
+# results: mae on training 0.3860, on validation 0.4410, on test 0.6136 (40 epochs)
 
 ############################################
 
