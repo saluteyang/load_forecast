@@ -343,6 +343,48 @@ def build_model2():
     model.compile(optimizer='rmsprop', loss='mse', metrics=['mae'])
     return model
 
+###########################################
+partial_train_data = partial_train_data.values
+partial_train_target = partial_train_target.values[:-336]
+# test_data = test_data.values
+# test_target = test_target.values
+val_data = val_data.values
+val_target = val_target.values[:-336]
+
+# redimension training data
+rows = np.arange(336, partial_train_data.shape[0])
+partial_train_data_3d = np.zeros((len(rows),
+                                 336,
+                                 partial_train_data.shape[1]))
+for j, row in enumerate(rows):
+    indices = range(rows[j] - 336, rows[j])
+    partial_train_data_3d[j] = partial_train_data[indices]
+
+# redimension validation data
+rows = np.arange(336, val_data.shape[0])
+val_data_3d = np.zeros((len(rows),
+                                 336,
+                                 val_data.shape[1]))
+for j, row in enumerate(rows):
+    indices = range(rows[j] - 336, rows[j])
+    val_data_3d[j] = val_data[indices]
+
+def build_model_corrected():
+    model = models.Sequential()
+    model.add(layers.GRU(64, input_shape=(None, train_data.shape[-1])))
+    model.add(layers.Dense(1))
+    model.compile(optimizer='rmsprop', loss='mse', metrics=['mae'])
+    return model
+
+model_corrected = build_model_corrected()
+history = model_corrected.fit(partial_train_data_3d,
+                              partial_train_target,
+                              epochs=1, batch_size=168,
+                              validation_data=(val_data_3d,
+                                               val_target))
+
+############################################
+
 model2 = build_model2()
 history = model2.fit_generator(train_gen,
                               steps_per_epoch=290,
@@ -673,3 +715,28 @@ plt.show()
 model6.evaluate_generator(test_gen, steps=55)
 
 # results: mae on training 0.684, on validation 1.706, on test 1.983 (20 epochs)
+
+# prophet test
+from fbprophet import Prophet
+
+aggregate_load = pd.DataFrame()
+with open('test.csv', 'r') as f:
+    aggregate_load = pd.read_csv(f, index_col=0)
+aggregate_load['COAST'] = aggregate_load['COAST']/1000
+aggregate_load['Hour_End'] = pd.to_datetime(aggregate_load['Hour_End'])
+
+df = aggregate_load[['Hour_End', 'COAST']]
+df = df.rename(columns={'Hour_End': 'ds', 'COAST': 'y'})
+m = Prophet()
+m.fit(df)
+
+future = m.make_future_dataframe(periods=24, freq='H')
+future.tail()
+
+forecast = m.predict(future)
+forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+fig1 = m.plot(forecast)
+fig2 = m.plot_components(forecast)
+
+fig1.show()
+fig2.show()
