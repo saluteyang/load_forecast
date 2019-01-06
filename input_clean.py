@@ -84,31 +84,21 @@ joined_keep['Off_Flag'] = joined_keep[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 joined_keep = joined_keep.merge(joined_keep.groupby(joined_keep.index.date)['COAST'].mean().to_frame(),
                                 left_on='Date', right_index=True,
                                 suffixes=['_Hourly', '_DailyAve'])  # syntax different from join method
-joined_keep = joined_keep.merge(joined_keep['COAST_Hourly'].shift(1, 'd').to_frame(),
-                                left_index=True, right_index=True, how='outer',
-                                suffixes=['', '_Pre_Day'])
-joined_keep = joined_keep.merge(joined_keep['COAST_Hourly'].shift(7, 'd').to_frame(),
-                                left_index=True, right_index=True, how='outer',
-                                suffixes=['', '_Pre_Wk_Day'])
-joined_keep = joined_keep.merge(joined_keep['COAST_DailyAve'].shift(1, 'd').to_frame(),
-                                left_index=True, right_index=True, how='outer',
-                                suffixes=['', '_Pre_Day'])
+joined_keep['COAST_Hourly_Pre_Day'] = joined_keep['COAST_Hourly'].shift(1, 'd').to_frame()
+joined_keep['COAST_Hourly_Pre_Wk_Day'] = joined_keep['COAST_Hourly'].shift(7, 'd').to_frame()
+joined_keep['COAST_DailyAve_Pre_Day'] = joined_keep['COAST_DailyAve'].shift(1, 'd').to_frame()
 
 # joined_keep[joined_keep.isnull().any(axis=1)]
 joined_keep = joined_keep.dropna()
 joined_keep = joined_keep.drop(columns=['Date', 'COAST_DailyAve', 'Wknd_Flag', 'Holiday_Flag'])
-joined_keep_float = joined_keep.drop(columns=['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity'])
-joined_keep_int = joined_keep[['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']]
-joined_keep_int = joined_keep_int.astype('int')
-joined_clean = joined_keep_float.merge(joined_keep_int, left_index=True, right_index=True)
-joined_clean_train = joined_clean[joined_clean.index.year != 2017]
-joined_clean_test = joined_clean[joined_clean.index.year == 2017]
+int_cols = ['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']
+joined_keep[int_cols] = joined_keep[int_cols].applymap(lambda x: int(x))
 
 # create training and testing data sets
-train_data = joined_clean_train.drop(columns=['COAST_Hourly'])
-train_target = joined_clean_train['COAST_Hourly']
-test_data = joined_clean_test.drop(columns=['COAST_Hourly'])
-test_target = joined_clean_test['COAST_Hourly']
+train_data = joined_keep[joined_keep.index.year != 2017].drop(columns=['COAST_Hourly'])
+train_target = joined_keep[joined_keep.index.year != 2017]['COAST_Hourly']
+test_data = joined_keep[joined_keep.index.year == 2017].drop(columns=['COAST_Hourly'])
+test_target = joined_keep[joined_keep.index.year == 2017]['COAST_Hourly']
 
 partial_train_data = train_data[10000:]
 val_data = train_data[:10000]
