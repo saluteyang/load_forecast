@@ -103,8 +103,8 @@ test_mae = test_metrics[1]
 print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:24, 0].mean()))
 # test accuracy: 0.45951
 
-loss_pred_plots(history=history, skip_epoch=0, model=model, \
-                test=test_gen, test_target=test_data[:,0], pred_periods=48)
+loss_pred_plots(history=history, skip_epoch=0, model=model,
+                test=test_gen, test_target=test_data[:, 0], pred_periods=48)
 
 # the RNN models ####################################################################
 
@@ -129,7 +129,31 @@ history_rnn = model_rnn.fit_generator(train_gen,
                                       )
 
 
-test_metrics_rnn = model.evaluate_generator(test_gen, steps=24)
+test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=24)
 test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
 print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:24, 0].mean()))
+# test accuracy: 0.63273
+
+loss_pred_plots(history=history_rnn, skip_epoch=0, model=model_rnn,
+                test=test_gen, test_target=test_data[:, 0], pred_periods=48)
+
+predictions = model_rnn.predict_generator(test_gen, steps=1)
+predictions.shape
+
+# (8064, 1) for steps 48
+# (4032, 1) for steps 24
+# (168, 1) for steps 1
+
+plt.plot(predictions)
+plt.show()
+
+plt.plot(test_data[:4032, 0])
+plt.show()
+
+import pickle
+
+with open(f'models/rnn_20.pickle', 'wb') as pfile:
+    pickle.dump(model_rnn, pfile)
+with open(f'models/rnn_20_hist.pickle', 'wb') as pfile:
+    pickle.dump(history_rnn, pfile)
