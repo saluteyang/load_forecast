@@ -15,6 +15,7 @@ import matplotlib.gridspec as gs
 from sklearn.tree import DecisionTreeRegressor
 from sklearn import preprocessing
 import numpy as np
+import pickle
 
 from models_noweather_helpers import *
 
@@ -35,17 +36,24 @@ aggregate_load.index = pd.to_datetime(aggregate_load.index)
 joined = aggregate_load.groupby(aggregate_load.index).first()  
 joined = joined.dropna().copy()
 
+# specify the region to forecast
+region = 'COAST'
+cols = [x for x in joined.columns if x!=region]
+
 # create indicator variables
 joined['Hour_Num'] = joined.index.hour
 joined['Day_Num'] = joined.index.weekday  # Monday is 0
 joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
 joined['Date'] = joined.index.date
+joined['Month'] = joined.index.month
+joined['Day'] = joined.index.day
 
 # add holidays flag
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
 joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
-joined = joined.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
+joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
+
 
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
@@ -97,15 +105,33 @@ history = model.fit_generator(train_gen,
                               validation_data=val_gen,
                               validation_steps=100)
 
-test_metrics = model.evaluate_generator(test_gen, steps=24)
+test_metrics = model.evaluate_generator(test_gen, steps=1)
 test_mae = test_metrics[1]
 # using the following accuracy definition
-print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:24, 0].mean()))
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168, 0].mean()))
 # test accuracy: 0.45951
+# test accuracy: 0.85912 (cleaned joined)
 
 loss_pred_plots(history=history, skip_epoch=0, model=model,
                 test=test_gen, test_target=test_data[:, 0], pred_periods=48)
 
+
+with open(f'models/dense_20_rev.pickle', 'wb') as pfile:
+    pickle.dump(model, pfile)
+with open(f'models/dense_20_rev_hist.pickle', 'wb') as pfile:
+    pickle.dump(history, pfile)
+
+predictions = model.predict_generator(test_gen, steps=10)
+predictions.shape
+
+plt.plot(predictions)
+plt.show()
+plt.plot(test_data[:1680, 0])
+plt.show()
+
+plt.plot(predictions[:168])
+plt.plot(test_data[:168, 0])
+plt.show()
 # the RNN models ####################################################################
 
 # early stopping?
@@ -119,7 +145,7 @@ def build_rnn():
 model_rnn = build_rnn()
 history_rnn = model_rnn.fit_generator(train_gen,
                                       steps_per_epoch=100,
-                                      epochs=20,
+                                      epochs=5,
                                       validation_data=val_gen,
                                       validation_steps=100
                                       # callbacks=[
@@ -129,16 +155,18 @@ history_rnn = model_rnn.fit_generator(train_gen,
                                       )
 
 
-test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=24)
+test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=1)
 test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
-print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:24, 0].mean()))
-# test accuracy: 0.63273
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168, 0].mean()))
+# test accuracy: 0.62100 (steps=1)
+# test accuracy: 0.74571 (steps=10)
+# test accuracy: 0.74947 (steps=24)
 
 loss_pred_plots(history=history_rnn, skip_epoch=0, model=model_rnn,
                 test=test_gen, test_target=test_data[:, 0], pred_periods=48)
 
-predictions = model_rnn.predict_generator(test_gen, steps=1)
+predictions = model_rnn.predict_generator(test_gen, steps=10)
 predictions.shape
 
 # (8064, 1) for steps 48
@@ -146,14 +174,15 @@ predictions.shape
 # (168, 1) for steps 1
 
 plt.plot(predictions)
+plt.plot(test_data[:1680, 0])
 plt.show()
-
-plt.plot(test_data[:4032, 0])
-plt.show()
-
-import pickle
 
 with open(f'models/rnn_20.pickle', 'wb') as pfile:
     pickle.dump(model_rnn, pfile)
 with open(f'models/rnn_20_hist.pickle', 'wb') as pfile:
     pickle.dump(history_rnn, pfile)
+
+# with open(f"models/rnn_20.pickle", "rb") as pfile:
+#     exec(f"model_rnn = pickle.load(pfile)")
+# with open(f"models/rnn_20_hist.pickle", "rb") as pfile:
+#     exec(f"history_rnn = pickle.load(pfile)")

@@ -9,7 +9,7 @@ def loss_pred_plots(history, skip_epoch, model, test, test_target, pred_periods)
     epochs = range(1, len(history_dict['loss']) + 1)
 
     # get the data for predictions based on model
-    predictions = model.predict_generator(test, steps=48)
+    predictions = model.predict_generator(test, steps=1)
 
 #     skip_epoch = 2
 #     pred_periods = 500
