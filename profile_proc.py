@@ -42,7 +42,7 @@ lst = []
 for f in glob.glob('ERCOT_load_profiles/*Profiles*.csv'):
     print(f)
     df = pd.read_csv(f)
-    df = df.loc[df.iloc[:, 0].isin(['BUSMEDLF_COAST', 'RESLOWR_COAST'])]
+    # df = df.loc[df.iloc[:, 0].isin(['BUSMEDLF_COAST', 'RESLOWR_COAST'])]
     if df.shape[1] > 102:  # since Q4 2012, a new column was added
         n = 5  # remove last 5 columns: 1 record time (new), 4 DST columns
     else:
@@ -51,7 +51,7 @@ for f in glob.glob('ERCOT_load_profiles/*Profiles*.csv'):
     df.columns = cols
     lst.append(df)
 profile_load = pd.concat(lst)
-profile_load.to_csv('test_profiles.csv', index=False)
+profile_load.to_csv('test_profiles_all.csv', index=False)
 
 # run the following seciton if using profiles  ##################################################################
 with open('test_profiles.csv', 'r') as f:
@@ -76,3 +76,22 @@ profile_reslo = profile_reslo.groupby(profile_reslo.index).mean()
 aggregate_load = profile_reslo['COAST'].dropna().to_frame()
 
 # continue to execute sections 'joining weather and load data' and beyond in input_clean.py
+
+# processing load profiles for all #########################################################################
+# import profiles (there are 248 total profiles)
+with open('test_profiles.csv', 'r') as f:
+    profile_load = pd.read_csv(f)
+
+profile_load = pd.melt(profile_load, id_vars=['Type', 'Date'], var_name='Segment', value_name='Load')
+profile_load['Segment'] = [int(x.split('_')[1])//4 - 1 for x in profile_load['Segment']]
+# temp = profile_load[profile_load.isnull().any(axis=1)]
+profile_load = profile_load.dropna()
+profile_load.index = pd.to_datetime(profile_load['Date'].map(str) + ' ' + profile_load['Segment'].map(str), format='%m/%d/%Y %H')
+
+# transpose to align with example
+df = profile_load.reset_index().pivot_table(index='Type', columns='index', values='Load', aggfunc='mean')
+
+# remove na's that result from different starting datetime
+df = df.dropna(axis=1)
+df = df.iloc[:, df.columns.year != 2018]
+# df.to_csv('test_big.csv')
