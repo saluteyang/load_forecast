@@ -11,6 +11,9 @@ import statsmodels.tsa.api as smt
 import seaborn as sns
 import matplotlib.gridspec as gs
 from sklearn.tree import DecisionTreeRegressor
+from sklearn import preprocessing
+import pickle
+
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -63,6 +66,13 @@ aggregate_load['COAST'] = aggregate_load['COAST']/1000  # source data units are 
 aggregate_load = aggregate_load.set_index('Hour_End')
 aggregate_load.index = pd.to_datetime(aggregate_load.index)
 
+# if running without weather data
+# duplicate index due to additional hour in Nov due to DST
+joined = aggregate_load.groupby(aggregate_load.index).first()
+joined = joined.dropna().copy()
+joined = joined['COAST']
+
+# if running with weather data ##########################################
 joined = aggregate_load.join(weather, how='inner')  # joining on index
 joined = joined.groupby(joined.index).first()  # duplicate index due to additional hour in Nov due to DST
 joined_keep = joined[['COAST', 'Drybulb', 'Humidity']].dropna().copy()
@@ -99,11 +109,34 @@ train_data = joined_keep[joined_keep.index.year != 2017].drop(columns=['COAST_Ho
 train_target = joined_keep[joined_keep.index.year != 2017]['COAST_Hourly']
 test_data = joined_keep[joined_keep.index.year == 2017].drop(columns=['COAST_Hourly'])
 test_target = joined_keep[joined_keep.index.year == 2017]['COAST_Hourly']
+###############################################################################
+# two corrections (train, val time order; standardization)
+# create lagged variables
+joined = joined.to_frame().merge(joined.groupby(joined.index.date).mean().to_frame(),
+                                left_index=True, right_index=True,
+                                suffixes=['_Hourly', '_DailyAve'], how='outer')  # syntax different from join method
+joined = joined.fillna(method='ffill')
+joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
+joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
+joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
+joined = joined.dropna()
 
-partial_train_data = train_data[10000:]
-val_data = train_data[:10000]
-partial_train_target = train_target[10000:]
-val_target = train_target[:10000]
+# hold out 2017 data
+train_data = joined[joined.index.year != 2017].drop(columns='COAST_Hourly')
+train_target = joined[joined.index.year != 2017]['COAST_Hourly']
+test_data = joined[joined.index.year == 2017].drop(columns='COAST_Hourly')
+test_target = joined[joined.index.year == 2017]['COAST_Hourly']
+
+# added section for standardization
+scaler = preprocessing.MinMaxScaler()
+train_data = scaler.fit_transform(train_data)
+test_data = scaler.transform(test_data)
+
+# all but the last 10000 used for training, val is the rest
+partial_train_data = train_data[:-10000]
+val_data = train_data[-10000:]
+partial_train_target = train_target[:-10000]
+val_target = train_target[-10000:]
 
 # optional plots for time series EDA
 # visualizing load
@@ -211,6 +244,12 @@ model.evaluate(test_data, test_target)
 test_mae = model.evaluate(test_data, test_target)[1]
 # using the following accuracy definition
 print('test accuracy: {:.5f}'.format(1-test_mae/test_target.mean()))
+# test accuracy: 0.96325 (final)
+
+with open(f'models/dense_60_lag.pickle', 'wb') as pfile:
+    pickle.dump(model, pfile)
+with open(f'models/dense_60_lag_hist.pickle', 'wb') as pfile:
+    pickle.dump(history, pfile)
 
 # test accuracy: 0.95497
 
@@ -239,13 +278,27 @@ test_target = test_target.values[:-336]
 val_data = val_data.values
 val_target = val_target.values[:-336]
 
+# use this part with final version
+partial_train_target = partial_train_target.values[336:]
+test_target = test_target.values[336:]
+val_target = val_target.values[336:]
+
+
 # redimension datasets for RNN
 def rnn_redim(data, lookback=336):
+    # rows are from 336 to number of rows in the data passed in
     rows = np.arange(lookback, data.shape[0])
+    # dims of samples: data row number - lookback, lookback, number of features
     samples = np.zeros((len(rows), lookback, data.shape[1]))
+    # for first iteration below: j=0, row=336 (row is not used)
+    # for second iteration: j=1, row=337
     for j, row in enumerate(rows):
+        # for first iteration: indices = range(0, 336)
+        # for second iteration: indices = range(1, 337)
         indices = range(rows[j] - lookback, rows[j])
-        samples[j] = data[indices]
+        # for first iteration: fill samples[0], a lookback x features matrix
+        # with data[range(0, 336)]
+        samples[j] = data[indices]  # sliding lookback window through the data
     return samples
 
 partial_train_data_3d = rnn_redim(partial_train_data)
@@ -299,6 +352,14 @@ plt.show()
 
 test_mae = model_corrected.evaluate(test_data_3d, test_target)[1]
 print('test accuracy: {:.5f}'.format(1-test_mae/test_target.mean()))
+
+# test accuracy: 0.96953 (final)
+
+with open(f'models/rnn_20_lag.pickle', 'wb') as pfile:
+    pickle.dump(model, pfile)
+with open(f'models/rnn_20_lag_hist.pickle', 'wb') as pfile:
+    pickle.dump(history, pfile)
+
 # test accuracy: 0.94259 (for 20 epochs-rerun)
 # test accuracy: 0.91674 (for 20 epochs-no lagged)
 # test accuracy: 0.94192 (for 20 epochs-no dummies)

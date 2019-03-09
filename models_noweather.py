@@ -54,6 +54,8 @@ joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
 
+# testing no dummies version
+joined = joined['COAST']
 
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
@@ -61,8 +63,8 @@ test_data = joined[joined.index.year == 2017]
 
 # added section for standardization
 scaler = preprocessing.MinMaxScaler()
-train_data = scaler.fit_transform(train_data)
-test_data = scaler.transform(test_data)
+train_data = scaler.fit_transform(train_data.values.reshape(-1, 1))
+test_data = scaler.transform(test_data.values.reshape(-1, 1))
 
 # create generators using udf in helpers file
 lookback = 1440  # 60 days
@@ -91,7 +93,8 @@ test_gen = generator(test_data,
 
 def build_model():
     model = models.Sequential()
-    model.add(layers.Flatten(input_shape=(lookback, joined.shape[-1])))
+    # model.add(layers.Flatten(input_shape=(lookback, joined.shape[-1])))
+    model.add(layers.Flatten(input_shape=(lookback, 1)))
     model.add(layers.Dense(20, activation='relu'))
     model.add(layers.Dense(20, activation='relu'))
     model.add(layers.Dense(1))
@@ -111,14 +114,15 @@ test_mae = test_metrics[1]
 print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168, 0].mean()))
 # test accuracy: 0.45951
 # test accuracy: 0.85912 (cleaned joined)
+# test accuracy: 0.83433 (no dummies)
 
 loss_pred_plots(history=history, skip_epoch=0, model=model,
                 test=test_gen, test_target=test_data[:, 0], pred_periods=48)
 
 
-with open(f'models/dense_20_rev.pickle', 'wb') as pfile:
+with open(f'models/dense_20_nd.pickle', 'wb') as pfile:
     pickle.dump(model, pfile)
-with open(f'models/dense_20_rev_hist.pickle', 'wb') as pfile:
+with open(f'models/dense_20_nd_hist.pickle', 'wb') as pfile:
     pickle.dump(history, pfile)
 
 predictions = model.predict_generator(test_gen, steps=10)
@@ -132,12 +136,22 @@ plt.show()
 plt.plot(predictions[:168])
 plt.plot(test_data[:168, 0])
 plt.show()
+
+plt.plot(predictions[:168*3])
+plt.plot(test_data[:168*3, 0])
+plt.show()
+
+plt.plot(predictions[:168*6])
+plt.plot(test_data[:168*6, 0])
+plt.show()
+
 # the RNN models ####################################################################
 
 # early stopping?
 def build_rnn():
     model = models.Sequential()
-    model.add(layers.GRU(64, input_shape=(None, train_data.shape[-1])))
+    # model.add(layers.GRU(64, input_shape=(None, train_data.shape[-1])))
+    model.add(layers.GRU(64, input_shape=(None, 1)))
     model.add(layers.Dense(1))
     model.compile(optimizer='rmsprop', loss='mse', metrics=['mae'])
     return model
@@ -145,7 +159,7 @@ def build_rnn():
 model_rnn = build_rnn()
 history_rnn = model_rnn.fit_generator(train_gen,
                                       steps_per_epoch=100,
-                                      epochs=5,
+                                      epochs=20,
                                       validation_data=val_gen,
                                       validation_steps=100
                                       # callbacks=[
@@ -155,13 +169,17 @@ history_rnn = model_rnn.fit_generator(train_gen,
                                       )
 
 
-test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=1)
+test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=3)
 test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
-print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168, 0].mean()))
-# test accuracy: 0.62100 (steps=1)
-# test accuracy: 0.74571 (steps=10)
-# test accuracy: 0.74947 (steps=24)
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*3, 0].mean()))
+# test accuracy: 0.83605 (1 step, no dummies)
+# test accuracy: 0.84380 (3 step, no dummies)
+# test accuracy: 0.79899 (10 step, no dummies)
+
+# test accuracy: 0.85972 (1 step, no dummies, 20 epochs)
+# test accuracy: 0.85584 (3 step, no dummies, 20 epochs)
+# test accuracy: 0.78466 (10 step, no dummies, 20 epochs)
 
 loss_pred_plots(history=history_rnn, skip_epoch=0, model=model_rnn,
                 test=test_gen, test_target=test_data[:, 0], pred_periods=48)
@@ -177,12 +195,17 @@ plt.plot(predictions)
 plt.plot(test_data[:1680, 0])
 plt.show()
 
-with open(f'models/rnn_20.pickle', 'wb') as pfile:
+with open(f'models/rnn_20_nd.pickle', 'wb') as pfile:
     pickle.dump(model_rnn, pfile)
-with open(f'models/rnn_20_hist.pickle', 'wb') as pfile:
+with open(f'models/rnn_20_nd_hist.pickle', 'wb') as pfile:
     pickle.dump(history_rnn, pfile)
 
-# with open(f"models/rnn_20.pickle", "rb") as pfile:
-#     exec(f"model_rnn = pickle.load(pfile)")
-# with open(f"models/rnn_20_hist.pickle", "rb") as pfile:
-#     exec(f"history_rnn = pickle.load(pfile)")
+with open(f"models/dense_20_rev.pickle", "rb") as pfile:
+    exec(f"model = pickle.load(pfile)")
+with open(f"models/dense_20_rev.pickle", "rb") as pfile:
+    exec(f"history = pickle.load(pfile)")
+
+with open(f"models/rnn_20.pickle", "rb") as pfile:
+    exec(f"model_rnn = pickle.load(pfile)")
+with open(f"models/rnn_20_hist.pickle", "rb") as pfile:
+    exec(f"history_rnn = pickle.load(pfile)")
