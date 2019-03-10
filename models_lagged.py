@@ -1,65 +1,24 @@
-import csv
-import datetime as dt
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import holidays
-from keras import models
-from keras import layers
+from keras import models, layers
 import os
-import statsmodels.tsa.api as smt
-import seaborn as sns
-import matplotlib.gridspec as gs
 from sklearn.tree import DecisionTreeRegressor
 from sklearn import preprocessing
 import pickle
+from helpers import *
 
+sns.set()
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 # section A: weather information
-
-filename = 'Houston_tx_hobby_2010-2017.csv'
-
-# choose only REPORTTPYE (misspelt) FM-15
-# exclude time periods when hourly drybulb or humidity data are missing
-# missing data can be blanks or wildcard character *
-
-with open(filename) as f:
-    reader = csv.reader(f)
-    header_row = next(reader)
-    # print header with position
-    for index, column_header in enumerate(header_row):
-        print(index, column_header)
-
-    dates, drybulb, humidity = [], [], []
-    for row in reader:
-        if row[6] == 'FM-15':
-            try:
-                date_obs = dt.datetime.strptime(row[5], "%Y-%m-%d %H:%M")
-                drybulb_temp = int(row[10])
-                relative_humidity = int(row[16])
-
-            except ValueError:
-                print(date_obs, 'missing data')
-
-            else:
-                dates.append(date_obs)
-                drybulb.append(drybulb_temp)
-                humidity.append(relative_humidity)
-
-weather = pd.DataFrame({'Hour_End': dates,
-                        'Drybulb': drybulb,
-                        'Humidity': humidity})
-weather = weather.set_index('Hour_End')
-
-# average out sub-hour weather info
-weather = weather.groupby([lambda x: x.date, lambda x: x.hour])['Drybulb', 'Humidity'].mean()
-weather.index = pd.to_datetime(weather.index.map(lambda x: '-'.join((str(x[0]), str(x[1])))), format='%Y-%m-%d-%H')
+with open('houston_weather.csv', 'r') as f:
+    weather = pd.read_csv(f, index_col=0)
 
 # section B: joining weather and load information and time series plots
 # import processed data; if using other profiles, run section in profile_proc.py and continue below ###############
-aggregate_load = pd.DataFrame()
+# aggregate_load = pd.DataFrame()
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
 aggregate_load['COAST'] = aggregate_load['COAST']/1000  # source data units are in MW, here converted to GW
@@ -138,49 +97,6 @@ val_data = train_data[-10000:]
 partial_train_target = train_target[:-10000]
 val_target = train_target[-10000:]
 
-# optional plots for time series EDA
-# visualizing load
-def load_tsplots():
-    subsample = aggregate_load['COAST'][:336]
-
-    plt.figure()
-    layout = (2, 2)
-    ts_ax = plt.subplot2grid(layout, (0, 0))
-    hist_ax = plt.subplot2grid(layout, (0, 1))
-    acf_ax = plt.subplot2grid(layout, (1, 0))
-    pacf_ax = plt.subplot2grid(layout, (1, 1))
-
-    subsample.plot(ax=ts_ax)
-    ts_ax.set_title('')
-    ts_ax.set_xlabel('')
-    # ts_ax.xaxis.set_major_formatter(mdates.DateFormatter('%d'))  # did not work; import matplotlib.dates as mdates
-    # for tick in ts_ax.get_xticklabels():
-    #     tick.set_rotation(90)
-    subsample.plot(ax=hist_ax, kind='hist', bins=25)
-    hist_ax.set_title('Histogram')
-    smt.graphics.plot_acf(subsample, lags=48, ax=acf_ax)
-    smt.graphics.plot_pacf(subsample, lags=48, ax=pacf_ax)
-    [ax.set_xlim(0) for ax in [acf_ax, pacf_ax]]
-    sns.despine()
-    plt.tight_layout()
-    plt.show()
-
-# visualizing load/temperature relationship
-def load_temp_distplot():
-    plt.figure()
-    gspec = gs.GridSpec(3, 3)
-    top_hist = plt.subplot(gspec[0, 1:]) # index position starts with 0
-    side_hist = plt.subplot(gspec[1:, 0])
-    lower_right = plt.subplot(gspec[1:, 1:])
-
-    top_hist.hist(joined_keep['Drybulb'], normed=True)
-    side_hist.hist(joined_keep['COAST_Hourly'], bins=50, orientation='horizontal', normed=True)
-    side_hist.invert_xaxis()
-    lower_right.scatter(joined_keep.Drybulb, joined_keep.COAST_Hourly)
-    lower_right.set_xlabel('temperature (F)')
-    lower_right.set_ylabel('load (GW)')
-    plt.show()
-
 # section C: different modelling approaches
 # decision tree model (baseline?)  ###########################################################################
 
@@ -189,12 +105,7 @@ model0 = DecisionTreeRegressor(min_samples_leaf=20).fit(train_data, train_target
 print('training accuracy: {:.3f}'.format(model0.score(train_data, train_target)))
 print('test accuracy: {:.3f}'.format(model0.score(test_data, test_target)))
 
-predictions = model0.predict(test_data)
-plt.plot(test_target.index[:1000], test_target[:1000], 'b', label='test actual', alpha=0.2)
-plt.plot(test_target.index[:1000], predictions[:1000], 'r', label='test predictions', alpha=0.2)
-plt.xticks(rotation=90)
-plt.legend()
-plt.show()
+pred_plot(model=model0, test=test_data, test_target=test_target, pred_periods=168)
 
 # training accuracy: 0.960 (here the score method returns R-square)
 # test accuracy: 0.903
@@ -219,26 +130,8 @@ history = model.fit(partial_train_data, partial_train_target,
                     epochs=60, batch_size=168,
                     validation_data=(val_data, val_target))
 
-loss = history.history['loss']
-val_loss = history.history['val_loss']
-history_dict = history.history
-epochs = range(1, len(history_dict['loss']) + 1)
-
-# leave out the first point
-plt.plot(epochs[1:], loss[1:], 'bo', label='training loss')  # blue dot
-plt.plot(epochs[1:], val_loss[1:], 'b', label='validation loss')
-plt.title('training and validation loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.legend()
-plt.show()
-
-predictions = model.predict(test_data)
-plt.plot(test_target.index[:1000], test_target[:1000], 'b', label='test actual', alpha=0.2)
-plt.plot(test_target.index[:1000], predictions[:1000], 'r', label='test predictions', alpha=0.2)
-plt.xticks(rotation=90)
-plt.legend()
-plt.show()
+loss_plot(history=history, skip_epoch=1)
+pred_plot(model=model, test=test_data, test_target=test_target, pred_periods=168)
 
 model.evaluate(test_data, test_target)
 test_mae = model.evaluate(test_data, test_target)[1]
@@ -246,10 +139,10 @@ test_mae = model.evaluate(test_data, test_target)[1]
 print('test accuracy: {:.5f}'.format(1-test_mae/test_target.mean()))
 # test accuracy: 0.96325 (final)
 
-with open(f'models/dense_60_lag.pickle', 'wb') as pfile:
-    pickle.dump(model, pfile)
-with open(f'models/dense_60_lag_hist.pickle', 'wb') as pfile:
-    pickle.dump(history, pfile)
+# with open(f'models/dense_60_lag.pickle', 'wb') as pfile:
+#     pickle.dump(model, pfile)
+# with open(f'models/dense_60_lag_hist.pickle', 'wb') as pfile:
+#     pickle.dump(history, pfile)
 
 # test accuracy: 0.95497
 
@@ -319,25 +212,8 @@ history = model_corrected.fit(partial_train_data_3d,
                               validation_data=(val_data_3d,
                                                val_target))
 
-loss = history.history['loss']
-val_loss = history.history['val_loss']
-history_dict = history.history
-epochs = range(1, len(history_dict['loss']) + 1)
-
-plt.plot(epochs[2:], loss[2:], 'bo', label='training loss')  # blue dot
-plt.plot(epochs[2:], val_loss[2:], 'b', label='validation loss')
-plt.title('training and validation loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.legend()
-plt.show()
-
-predictions = model_corrected.predict(test_data_3d)
-plt.plot(range(1000), predictions[:1000], 'r', label='test predictions', alpha=0.2)
-plt.plot(range(1000), test_target[:1000], 'b', label='test actual', alpha=0.2)
-plt.xticks(rotation=90)
-plt.legend()
-plt.show()
+loss_plot(history=history, skip_epoch=1)
+pred_plot(model=model_corrected, test=test_data_3d, test_target=test_target, pred_periods=168)
 
 # model_corrected.evaluate(test_data_3d, test_target)
 
@@ -355,10 +231,10 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_target.mean()))
 
 # test accuracy: 0.96953 (final)
 
-with open(f'models/rnn_20_lag.pickle', 'wb') as pfile:
-    pickle.dump(model, pfile)
-with open(f'models/rnn_20_lag_hist.pickle', 'wb') as pfile:
-    pickle.dump(history, pfile)
+# with open(f'models/rnn_20_lag.pickle', 'wb') as pfile:
+#     pickle.dump(model, pfile)
+# with open(f'models/rnn_20_lag_hist.pickle', 'wb') as pfile:
+#     pickle.dump(history, pfile)
 
 # test accuracy: 0.94259 (for 20 epochs-rerun)
 # test accuracy: 0.91674 (for 20 epochs-no lagged)

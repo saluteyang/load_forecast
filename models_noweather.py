@@ -1,23 +1,15 @@
-import csv
-import datetime as dt
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import holidays
-from keras import models
-from keras import layers
-from keras import callbacks
-# import keras
+from keras import models, layers, callbacks
 import os
-import statsmodels.tsa.api as smt
-import seaborn as sns
-import matplotlib.gridspec as gs
-from sklearn.tree import DecisionTreeRegressor
 from sklearn import preprocessing
-import numpy as np
 import pickle
 
-from models_noweather_helpers import *
+import seaborn as sns
+sns.set()
+
+from helpers import *
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -48,12 +40,22 @@ joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
 joined['Date'] = joined.index.date
 joined['Month'] = joined.index.month
 joined['Day'] = joined.index.day
+joined['Day_Year'] = joined.index.dayofyear
 
 # add holidays flag
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
 joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
+
+# create training and testing data sets, generator will separate out the features and target
+train_data = joined[joined.index.year != 2017]
+test_data = joined[joined.index.year == 2017]
+
+# standardization for with dummy version
+scaler = preprocessing.MinMaxScaler()
+train_data = scaler.fit_transform(train_data.values)
+test_data = scaler.transform(test_data.values)
 #######################################
 
 # testing no dummies version
@@ -67,11 +69,6 @@ test_data = joined[joined.index.year == 2017]
 scaler = preprocessing.MinMaxScaler()
 train_data = scaler.fit_transform(train_data.values.reshape(-1, 1))
 test_data = scaler.transform(test_data.values.reshape(-1, 1))
-
-# standardization for with dummy version
-scaler = preprocessing.MinMaxScaler()
-train_data = scaler.fit_transform(train_data.values)
-test_data = scaler.transform(test_data.values)
 
 # create generators using udf in helpers file
 lookback = 1440  # 60 days
@@ -87,11 +84,6 @@ val_gen = generator(train_data,
                     delay=delay,
                     min_index=50001,
                     max_index=None)
-test_gen = generator(test_data,
-                     lookback=lookback,
-                     delay=delay,
-                     min_index=0,
-                     max_index=None)
 
 # val_steps = (60000 - 50001 - lookback)
 # test_steps = (len(joined) - 60001 - lookback)
@@ -115,6 +107,12 @@ history = model.fit_generator(train_gen,
                               validation_data=val_gen,
                               validation_steps=100)
 
+test_gen = generator(test_data,
+                     lookback=lookback,
+                     delay=delay,
+                     min_index=0,
+                     max_index=None)
+
 test_metrics = model.evaluate_generator(test_gen, steps=10)
 test_mae = test_metrics[1]
 # using the following accuracy definition
@@ -127,19 +125,18 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 # test accuracy: 0.81311 (3 step, with dummies)
 # test accuracy: 0.75873 (10 step, with dummies)
 
-loss_pred_plots(history=history, skip_epoch=0, model=model,
-                test=test_gen, test_target=test_data[:, 0], pred_periods=48)
+loss_plot(history=history, skip_epoch=0)
+pred_plot(model=model, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
 
-
-with open(f'models/dense_20_nd.pickle', 'wb') as pfile:
-    pickle.dump(model, pfile)
-with open(f'models/dense_20_nd_hist.pickle', 'wb') as pfile:
-    pickle.dump(history, pfile)
-
-with open(f"models/dense_20_rev.pickle", "rb") as pfile:
-    exec(f"model = pickle.load(pfile)")
-with open(f"models/dense_20_rev.pickle", "rb") as pfile:
-    exec(f"history = pickle.load(pfile)")
+# with open(f'models/dense_20_nd.pickle', 'wb') as pfile:
+#     pickle.dump(model, pfile)
+# with open(f'models/dense_20_nd_hist.pickle', 'wb') as pfile:
+#     pickle.dump(history, pfile)
+#
+# with open(f"models/dense_20_rev.pickle", "rb") as pfile:
+#     exec(f"model = pickle.load(pfile)")
+# with open(f"models/dense_20_rev.pickle", "rb") as pfile:
+#     exec(f"history = pickle.load(pfile)")
 
 predictions = model.predict_generator(test_gen, steps=52)
 predictions.shape
@@ -184,11 +181,16 @@ history_rnn = model_rnn.fit_generator(train_gen,
                                       # ]
                                       )
 
+test_gen = generator(test_data,
+                     lookback=lookback,
+                     delay=delay,
+                     min_index=0,
+                     max_index=None)
 
-test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=3)
+test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=10)
 test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
-print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*3, 0].mean()))
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 # test accuracy: 0.83605 (1 step, no dummies)
 # test accuracy: 0.84380 (3 step, no dummies)
 # test accuracy: 0.79899 (10 step, no dummies)
@@ -197,36 +199,28 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*3, 0].mean()))
 # test accuracy: 0.85584 (3 step, no dummies, 20 epochs)
 # test accuracy: 0.78466 (10 step, no dummies, 20 epochs)
 
-loss_pred_plots(history=history_rnn, skip_epoch=0, model=model_rnn,
-                test=test_gen, test_target=test_data[:, 0], pred_periods=48)
+# test accuracy: 0.85781 (1 step, no dummies, 20 epochs, 2 layers, dropout)
+# test accuracy: 0.77481 (10 step, no dummies, 20 epochs, 2 layers, dropout)
 
-predictions = model_rnn.predict_generator(test_gen, steps=52)
-predictions.shape
+# test accuracy: 0.90052 (1 step, with dummies (inc dayofyear), 20 epochs)
+# test accuracy: 0.88409 (3 step, with dummies (inc dayofyear), 20 epochs)
+# test accuracy: 0.80995 (10 step, with dummies (inc dayofyear), 20 epochs)
 
-# (8064, 1) for steps 48
-# (4032, 1) for steps 24
-# (168, 1) for steps 1
+loss_plot(history=history_rnn, skip_epoch=0)
+pred_plot(model=model_rnn, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
+pred_multiplot(model_rnn, test_gen, test_data)
 
-plt.plot(predictions)
-plt.show()
-plt.plot(test_data[:168*52, 0])
-plt.show()
-
-plt.plot(predictions[:168*26])
-plt.plot(test_data[:168*26, 0])
-plt.show()
-
-plt.plot(predictions)
-plt.plot(test_data[:168*52, 0])
-plt.show()
-
-with open(f'models/rnn_10_rev.pickle', 'wb') as pfile:
-    pickle.dump(model_rnn, pfile)
-with open(f'models/rnn_10_rev_hist.pickle', 'wb') as pfile:
-    pickle.dump(history_rnn, pfile)
-
-
-with open(f"models/rnn_20.pickle", "rb") as pfile:
-    exec(f"model_rnn = pickle.load(pfile)")
-with open(f"models/rnn_20_hist.pickle", "rb") as pfile:
-    exec(f"history_rnn = pickle.load(pfile)")
+# with open(f'models/rnn_10_rev.pickle', 'wb') as pfile:
+#     pickle.dump(model_rnn, pfile)
+# with open(f'models/rnn_10_rev_hist.pickle', 'wb') as pfile:
+#     pickle.dump(history_rnn, pfile)
+#
+# with open(f"models/rnn_20_wd_rev.pickle", "rb") as pfile:
+#     exec(f"model_rnn = pickle.load(pfile)")
+# with open(f"models/rnn_20_wd_rev_hist.pickle", "rb") as pfile:
+#     exec(f"history_rnn = pickle.load(pfile)")
+#
+# with open(f"models/rnn_20_nd_do_2layer.pickle", "rb") as pfile:
+#     exec(f"model_rnn = pickle.load(pfile)")
+# with open(f"models/rnn_20_nd_do_2layer_hist.pickle", "rb") as pfile:
+#     exec(f"history_rnn = pickle.load(pfile)")

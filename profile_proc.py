@@ -1,10 +1,50 @@
+import csv
 import glob
 import pandas as pd
 import datetime as dt
-import statsmodels.formula.api as sm
-import matplotlib.pyplot as plt
 
-# processing weather data  ####################################################################################
+# processing weatehr data ##########################################################################
+
+filename = 'Houston_tx_hobby_2010-2017.csv'
+
+# choose only REPORTTPYE (misspelt) FM-15
+# exclude time periods when hourly drybulb or humidity data are missing
+# missing data can be blanks or wildcard character *
+
+with open(filename) as f:
+    reader = csv.reader(f)
+    header_row = next(reader)
+    # print header with position
+    for index, column_header in enumerate(header_row):
+        print(index, column_header)
+
+    dates, drybulb, humidity = [], [], []
+    for row in reader:
+        if row[6] == 'FM-15':
+            try:
+                date_obs = dt.datetime.strptime(row[5], "%Y-%m-%d %H:%M")
+                drybulb_temp = int(row[10])
+                relative_humidity = int(row[16])
+
+            except ValueError:
+                print(date_obs, 'missing data')
+
+            else:
+                dates.append(date_obs)
+                drybulb.append(drybulb_temp)
+                humidity.append(relative_humidity)
+
+weather = pd.DataFrame({'Hour_End': dates,
+                        'Drybulb': drybulb,
+                        'Humidity': humidity})
+weather = weather.set_index('Hour_End')
+
+# average out sub-hour weather info
+weather = weather.groupby([lambda x: x.date, lambda x: x.hour])['Drybulb', 'Humidity'].mean()
+weather.index = pd.to_datetime(weather.index.map(lambda x: '-'.join((str(x[0]), str(x[1])))), format='%Y-%m-%d-%H')
+weather.to_csv('houston_weather.csv')
+
+# processing aggregate load data  #########################################################################
 
 # below will fail initially as there is 24 in the hour string in the 2017 file (see commented out code)
 # there is also a thousands separator inside numbers in that file that causes parsing problems
@@ -36,7 +76,7 @@ aggregate_load.to_csv('test.csv', index=False)
 #     print({i: x.shape for x in lst})
 
 
-# processing load data  ######################################################################################
+# processing load profiles and concat  #########################################################################
 cols = ['Type', 'Date'] + ['seg_' + n for n in list(map(str, range(4, 96+4)))]  # start with 4 so that integer div returns 1
 lst = []
 for f in glob.glob('ERCOT_load_profiles/*Profiles*.csv'):
@@ -53,7 +93,7 @@ for f in glob.glob('ERCOT_load_profiles/*Profiles*.csv'):
 profile_load = pd.concat(lst)
 profile_load.to_csv('test_profiles_all.csv', index=False)
 
-# run the following seciton if using profiles  ##################################################################
+# run the following seciton if using selext profiles  #################################################
 with open('test_profiles.csv', 'r') as f:
     profile_load = pd.read_csv(f)
 
@@ -71,11 +111,11 @@ profile_reslo['Segment'] = [int(x.split('_')[1])//4 - 1 for x in profile_reslo['
 profile_reslo.index = pd.to_datetime(profile_reslo['Date'].map(str) + ' ' + profile_reslo['Segment'].map(str), format='%m/%d/%Y %H')
 profile_reslo = profile_reslo.groupby(profile_reslo.index).mean()
 
-# renaming to aggregate load to agree with input_clean.py
+# renaming to aggregate load to agree with models_lagged.py
 # switch to the desired load profile here
 aggregate_load = profile_reslo['COAST'].dropna().to_frame()
 
-# continue to execute sections 'joining weather and load data' and beyond in input_clean.py
+# continue to execute sections 'joining weather and load data' and beyond in models_lagged.py
 
 # processing load profiles for all #########################################################################
 # import profiles (there are 248 total profiles)
