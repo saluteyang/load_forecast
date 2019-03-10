@@ -217,12 +217,12 @@ plt.plot(test_data[:168*26, 0])
 plt.show()
 
 plt.plot(predictions)
-plt.plot(test_data[:1680, 0])
+plt.plot(test_data[:168*52, 0])
 plt.show()
 
-with open(f'models/rnn_20_nd.pickle', 'wb') as pfile:
+with open(f'models/rnn_10_rev.pickle', 'wb') as pfile:
     pickle.dump(model_rnn, pfile)
-with open(f'models/rnn_20_nd_hist.pickle', 'wb') as pfile:
+with open(f'models/rnn_10_rev_hist.pickle', 'wb') as pfile:
     pickle.dump(history_rnn, pfile)
 
 
