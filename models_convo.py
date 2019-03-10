@@ -129,3 +129,60 @@ history = model.fit(encoder_input_data, decoder_target_data,
                     batch_size=batch_size,
                     epochs=epochs,
                     validation_split=0.2)
+
+# plot training vs validation loss
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+
+plt.xlabel('Epoch')
+plt.ylabel('Mean Absolute Error Loss')
+plt.title('Loss Over Time')
+plt.legend(['Train', 'Valid'])
+
+# prepare validation data for forecast
+encoder_input_data = get_time_block_series(df.values, date_to_index, val_enc_start, val_enc_end)
+encoder_input_data, encode_series_mean = transform_series_encode(encoder_input_data)
+
+decoder_target_data = get_time_block_series(df.values, date_to_index, val_pred_start, val_pred_end)
+decoder_target_data = transform_series_decode(decoder_target_data, encode_series_mean)
+
+# make and plot predictions
+def predict_sequence(input_sequence):
+    history_sequence = input_sequence.copy()
+    pred_sequence = np.zeros((1, pred_steps, 1))  # initialize output (pred_steps time steps)
+
+    for i in range(pred_steps):
+        # record next time step prediction (last time step of model output)
+        last_step_pred = model.predict(history_sequence)[0, -1, 0]
+        pred_sequence[0, i, 0] = last_step_pred
+
+        # add the next time step prediction to the history sequence
+        history_sequence = np.concatenate([history_sequence,
+                                           last_step_pred.reshape(-1, 1, 1)], axis=1)
+
+    return pred_sequence
+
+
+def predict_and_plot(encoder_input_data, decoder_target_data, sample_ind, enc_tail_len=50):
+    encode_series = encoder_input_data[sample_ind:sample_ind + 1, :, :]
+    pred_series = predict_sequence(encode_series)
+
+    encode_series = encode_series.reshape(-1, 1)
+    pred_series = pred_series.reshape(-1, 1)
+    target_series = decoder_target_data[sample_ind, :, :1].reshape(-1, 1)
+
+    encode_series_tail = np.concatenate([encode_series[-enc_tail_len:], target_series[:1]])
+    x_encode = encode_series_tail.shape[0]
+
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(range(1, x_encode + 1), encode_series_tail)
+    plt.plot(range(x_encode, x_encode + pred_steps), target_series, color='orange')
+    plt.plot(range(x_encode, x_encode + pred_steps), pred_series, color='teal', linestyle='--')
+
+    plt.title('Encoder Series Tail of Length %d, Target Series, and Predictions' % enc_tail_len)
+    plt.legend(['Encoding Series', 'Target Series', 'Predictions'])
+
+predict_and_plot(encoder_input_data, decoder_target_data, 100, 150)
+
+predict_and_plot(encoder_input_data, decoder_target_data, 200, 150)
