@@ -15,7 +15,6 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 # data processing step #############################
 # import processed data; if using other profiles, run section in profile_proc.py and continue below ###############
-aggregate_load = pd.DataFrame()
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
 
@@ -41,6 +40,7 @@ joined['Date'] = joined.index.date
 joined['Month'] = joined.index.month
 joined['Day'] = joined.index.day
 joined['Day_Year'] = joined.index.dayofyear
+joined['Week_Year'] = joined.index.weekofyear
 
 # add holidays flag
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
@@ -92,8 +92,8 @@ val_gen = generator(train_data,
 
 def build_model():
     model = models.Sequential()
-    # model.add(layers.Flatten(input_shape=(lookback, joined.shape[-1])))
-    model.add(layers.Flatten(input_shape=(lookback, 1)))
+    model.add(layers.Flatten(input_shape=(lookback, joined.shape[-1])))
+    # model.add(layers.Flatten(input_shape=(lookback, 1)))
     model.add(layers.Dense(20, activation='relu'))
     model.add(layers.Dense(20, activation='relu'))
     model.add(layers.Dense(1))
@@ -103,9 +103,9 @@ def build_model():
 model = build_model()
 history = model.fit_generator(train_gen,
                               epochs=20,
-                              steps_per_epoch=100,
+                              steps_per_epoch=365,
                               validation_data=val_gen,
-                              validation_steps=100)
+                              validation_steps=50)
 
 test_gen = generator(test_data,
                      lookback=lookback,
@@ -121,42 +121,50 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 # test accuracy: 0.82919 (3 step, no dummies)
 # test accuracy: 0.76700 (10 step, no dummies)
 
-# test accuracy: 0.85912 (1 step, with dummies)
+# test accuracy: 0.85912 (1 step, with dummies)  -- best performer, day of year doesn't help here (?)
 # test accuracy: 0.81311 (3 step, with dummies)
 # test accuracy: 0.75873 (10 step, with dummies)
 
+# test accuracy: 0.33058 (1 step, with dummies, earlystop)
+# test accuracy: 0.21906 (3 step, with dummies, earlystop)
+# test accuracy: 0.17096 (10 step, with dummies, earlystop)
+
+# test accuracy: 0.70826 (1 step, with dummies, correct steps per epoch) - wrong generator after previous model run
+# test accuracy: 0.65070 (3 step, with dummies, correct steps per epoch)
+# test accuracy: 0.50023 (10 step, with dummies, correct steps per epoch)
+
+# test accuracy: 0.64582 (1 step, with dummies, adam opt, reduce on plateau, 80, 40, dropout)
+# test accuracy: 0.56213 (3 step, with dummies, adam opt, reduce on plateau, 80, 40, dropout)
+# test accuracy: 0.49889 (10 step, with dummies, adam opt, reduce on plateau, 80, 40, dropout)
+
 loss_plot(history=history, skip_epoch=0)
 pred_plot(model=model, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
+pred_multiplot(model, test_gen, test_data)
+
+predictions = model.predict_generator(test_gen, steps=52)
+
+err_hist = []
+for i in range(52):
+    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[i*168: (i+1)*168, 0]
+    err_hist.append(mean_abs_err(a1, a2))
+plt.plot(err_hist_rnn)
+plt.show()
 
 # with open(f'models/dense_20_nd.pickle', 'wb') as pfile:
 #     pickle.dump(model, pfile)
 # with open(f'models/dense_20_nd_hist.pickle', 'wb') as pfile:
 #     pickle.dump(history, pfile)
-#
+
+# best performer
 # with open(f"models/dense_20_rev.pickle", "rb") as pfile:
 #     exec(f"model = pickle.load(pfile)")
-# with open(f"models/dense_20_rev.pickle", "rb") as pfile:
+# with open(f"models/dense_20_rev_hist.pickle", "rb") as pfile:
 #     exec(f"history = pickle.load(pfile)")
 
-predictions = model.predict_generator(test_gen, steps=52)
-predictions.shape
-
-plt.plot(predictions)
-plt.show()
-plt.plot(test_data[:168*52, 0])
-plt.show()
-
-plt.plot(predictions[:168])
-plt.plot(test_data[:168, 0])
-plt.show()
-
-plt.plot(predictions[:168*3])
-plt.plot(test_data[:168*3, 0])
-plt.show()
-
-plt.plot(predictions[:168*26])
-plt.plot(test_data[:168*26, 0])
-plt.show()
+with open(f"models/dense_80-40_wd_do_lr_adam_fin.pickle", "rb") as pfile:
+    exec(f"model = pickle.load(pfile)")
+with open(f"models/dense_80-40_wd_do_lr_adam_fin_hist.pickle", "rb") as pfile:
+    exec(f"history = pickle.load(pfile)")
 
 # the RNN models ####################################################################
 
@@ -171,10 +179,10 @@ def build_rnn():
 
 model_rnn = build_rnn()
 history_rnn = model_rnn.fit_generator(train_gen,
-                                      steps_per_epoch=100,
-                                      epochs=10,
+                                      steps_per_epoch=365,
+                                      epochs=20,
                                       validation_data=val_gen,
-                                      validation_steps=100
+                                      validation_steps=50
                                       # callbacks=[
                                       #     callbacks.EarlyStopping(patience=5, verbose=1,
                                       #                             restore_best_weights=True)
@@ -206,21 +214,47 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 # test accuracy: 0.88409 (3 step, with dummies (inc dayofyear), 20 epochs)
 # test accuracy: 0.80995 (10 step, with dummies (inc dayofyear), 20 epochs)
 
+# test accuracy: 0.77204 (1 step, with dummies (inc dayofyear), 2 layers, dropout, earlystop)
+# test accuracy: 0.75924 (3 step, with dummies (inc dayofyear), 2 layers, dropout, earlystop)
+# test accuracy: 0.73952 (10 step, with dummies (inc dayofyear), 2 layers, dropout, earlystop)
+
+# test accuracy: 0.79798 (1 step, with dummies (inc dayofyear), earlystop)
+# test accuracy: 0.80139 (3 step, with dummies (inc dayofyear), earlystop)
+# test accuracy: 0.77021 (10 step, with dummies (inc dayofyear), earlystop)
+
+# final model
+# test accuracy: 0.85756 (1 step, with dummies (inc dayofyear), correct steps per epoch, 20 epochs)
+# test accuracy: 0.84076 (3 step, with dummies (inc dayofyear), correct steps per epoch, 20 epochs)
+# test accuracy: 0.77202 (10 step, with dummies (inc dayofyear), correct steps per epoch, 20 epochs)
+
+# test accuracy: 0.85767 (1 step, with dummies (inc dayofyear), correct steps per epoch, dropout, 2 layer, 40 epochs)
+# test accuracy: 0.84749 (3 step, with dummies (inc dayofyear), correct steps per epoch, dropout, 2 layer, 40 epochs)
+# test accuracy: 0.77886 (10 step, with dummies (inc dayofyear), correct steps per epoch, dropout, 2 layer, 40 epochs)
+
 loss_plot(history=history_rnn, skip_epoch=0)
 pred_plot(model=model_rnn, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
 pred_multiplot(model_rnn, test_gen, test_data)
+
+predictions = model_rnn.predict_generator(test_gen, steps=52)
+
+err_hist_rnn = []
+for i in range(52):
+    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[i*168: (i+1)*168, 0]
+    err_hist_rnn.append(mean_abs_err(a1, a2))
+plt.plot(err_hist_rnn)
+plt.show()
 
 # with open(f'models/rnn_10_rev.pickle', 'wb') as pfile:
 #     pickle.dump(model_rnn, pfile)
 # with open(f'models/rnn_10_rev_hist.pickle', 'wb') as pfile:
 #     pickle.dump(history_rnn, pfile)
 #
-# with open(f"models/rnn_20_wd_rev.pickle", "rb") as pfile:
+# with open(f"models/rnn_20_wd_do_2layer_fin.pickle", "rb") as pfile:
 #     exec(f"model_rnn = pickle.load(pfile)")
-# with open(f"models/rnn_20_wd_rev_hist.pickle", "rb") as pfile:
+# with open(f"models/rnn_20_wd_do_2layer_fin_hist.pickle", "rb") as pfile:
 #     exec(f"history_rnn = pickle.load(pfile)")
 #
-# with open(f"models/rnn_20_nd_do_2layer.pickle", "rb") as pfile:
-#     exec(f"model_rnn = pickle.load(pfile)")
-# with open(f"models/rnn_20_nd_do_2layer_hist.pickle", "rb") as pfile:
-#     exec(f"history_rnn = pickle.load(pfile)")
+with open(f"models/rnn_20_wd_fin.pickle", "rb") as pfile:
+    exec(f"model_rnn = pickle.load(pfile)")
+with open(f"models/rnn_20_wd_fin_hist.pickle", "rb") as pfile:
+    exec(f"history_rnn = pickle.load(pfile)")

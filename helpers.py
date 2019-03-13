@@ -91,7 +91,7 @@ def pred_multiplot(model, test, test_target, steps=10, multi=[1, 3, 5, 10]):
     axarr[1,1].set_xlabel('periods')
     axarr[1,1].set_ylabel('load')
 
-    plt.figlegend([line1, line2], ['pred', 'actual'], 'upper right')
+    plt.figlegend([line1, line2], ['pred', 'actual'], 'lower center')
 
     f.subplots_adjust(hspace=0.7)
     plt.show()
@@ -165,3 +165,12 @@ def load_temp_distplot(data, temp='Drybulb', load='COAST_Hourly'):
     lower_right.set_xlabel('temperature (F)')
     lower_right.set_ylabel('load (GW)')
     plt.show()
+
+# calculate test accuracy at every forecast step and plot
+def mean_abs_err(a1, a2):
+    if len(a1) != len(a2):
+        raise ValueError("two series don't have the same length")
+    sum_err = 0
+    for i in range(len(a1)):
+        sum_err = sum([abs(x) for x in np.subtract(a1, a2)])/len(a1)
+    return sum_err

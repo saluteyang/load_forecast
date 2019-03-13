@@ -102,6 +102,8 @@ val_target = train_target[-10000:]
 
 model0 = DecisionTreeRegressor(min_samples_leaf=20).fit(train_data, train_target)
 
+y_pred = model0.predict(test_data)
+
 print('training accuracy: {:.3f}'.format(model0.score(train_data, train_target)))
 print('test accuracy: {:.3f}'.format(model0.score(test_data, test_target)))
 
@@ -110,9 +112,46 @@ pred_plot(model=model0, test=test_data, test_target=test_target, pred_periods=16
 # training accuracy: 0.960 (here the score method returns R-square)
 # test accuracy: 0.903
 
+from sklearn.ensemble import GradientBoostingRegressor
+
+alpha = 0.95
+model1 = GradientBoostingRegressor(min_samples_leaf=20, alpha=alpha, loss='quantile',
+                                   n_estimators=100)
+model1.fit(train_data, train_target)
+
+# make predictions
+y_upper = model1.predict(test_data)
+
+model1.set_params(alpha=1.0 - alpha)
+model1.fit(train_data, train_target)
+
+y_lower = model1.predict(test_data)
+
+model1.set_params(loss='ls')
+model1.fit(train_data, train_target)
+
+y_pred = model1.predict(test_data)
+
+print('training accuracy: {:.3f}'.format(model1.score(train_data, train_target)))
+print('test accuracy: {:.3f}'.format(model1.score(test_data, test_target)))
+
+# plot 1 week actual and prediction interval
+periods = 168
+plt.plot(y_upper[:periods])
+plt.plot(y_lower[:periods])
+plt.plot(y_pred[:periods])
+plt.plot(test_target.values[:periods], linestyle='dashed', color='black')
+plt.show()
+
+
+# training accuracy: 0.952
+# test accuracy: 0.921
+
 # using accuracy definition as below
-mae_pct = 1 - np.mean(abs(predictions - test_target.values.reshape(len(test_target.values), 1)))/np.mean(test_target.values)
-# test accuracy: 0.95555
+# mae_pct = 1 - np.mean(abs(y_pred - test_target.values.reshape(len(test_target.values), 1)))/np.mean(test_target.values)
+mae_pct = 1 - np.mean(np.absolute(y_pred - test_target.values))/np.mean(test_target.values)
+# test accuracy: 0.94985 (decision tree)
+# test accuracy: 0.95358 (gradient-boosted trees)
 
 # regression model  #########################################################################################
 
