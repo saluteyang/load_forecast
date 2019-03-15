@@ -267,3 +267,28 @@ with open(f"models/rnn_20_wd_fin.pickle", "rb") as pfile:
     exec(f"model_rnn = pickle.load(pfile)")
 with open(f"models/rnn_20_wd_fin_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
+
+with open(f"centroids.pickle", "rb") as pfile:
+    exec(f"centroids = pickle.load(pfile)")
+
+# find assignment to centroids for the weeks
+# import operator
+# sorted_centroids = sorted(centroids[1].items(), key=operator.itemgetter(1))
+assignment = []
+week_num = []
+for cluster in centroids[1]:
+    for i in centroids[1][cluster]:
+        week_num.append(i)
+        assignment.append(cluster)
+
+pd_centroids = pd.DataFrame({'weeknum': week_num,
+                             'cluster': assignment})
+pd_centroids.sort_values(by='weeknum', inplace=True)
+###
+plt.bar(week_num, assignment, align='center', alpha=0.5)
+plt.xticks(y_pos, objects)
+plt.ylabel('Usage')
+plt.title('Programming language usage')
+
+
+
