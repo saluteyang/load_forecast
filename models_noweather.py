@@ -56,6 +56,7 @@ joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_fram
 joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
 
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
+joined = joined.dropna()
 
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
@@ -65,6 +66,9 @@ test_data = joined[joined.index.year == 2017]
 scaler = preprocessing.MinMaxScaler()
 train_data = scaler.fit_transform(train_data.values)
 test_data = scaler.transform(test_data.values)
+
+# train_data = train_data[~np.isnan(train_data).any(axis=1)]
+# test_data = test_data[~np.isnan(test_data).any(axis=1)]
 #######################################
 
 # testing no dummies version
