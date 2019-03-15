@@ -3,6 +3,7 @@ import numpy as np
 from numpy import fft
 import pandas as pd
 import holidays
+import pickle
 
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
@@ -180,9 +181,12 @@ def k_means_clust(data, num_clust, num_iter, w=4):
                 clust_sum = clust_sum + data[k]
             centroids[key] = [m / len(assignments[key]) for m in clust_sum]
 
-    return centroids
+    return (centroids, assignments)
 
 centroids = k_means_clust(cluster_data, 4, 100, 4)
+
+with open(f'centroids.pickle', 'wb') as pfile:
+    pickle.dump(centroids, pfile)
 
 for i in centroids:
     plt.plot(i)
