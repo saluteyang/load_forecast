@@ -275,8 +275,15 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_target.mean()))
 # with open(f'models/rnn_20_lag_hist.pickle', 'wb') as pfile:
 #     pickle.dump(history, pfile)
 
+with open(f'models/rnn_20_lag_nw_wd.pickle', 'wb') as pfile:
+    pickle.dump(model_corrected, pfile)
+with open(f'models/rnn_20_lag_nw_wd_hist.pickle', 'wb') as pfile:
+    pickle.dump(history, pfile)
+
+
 # test accuracy: 0.94259 (for 20 epochs-rerun)
 # test accuracy: 0.91674 (for 20 epochs-no lagged)
 # test accuracy: 0.94192 (for 20 epochs-no dummies)
 # test accuracy: 0.97236 (for 20 epochs-no weather & dummies)
+# test accuracy: 0.97040 (for 20 epochs-no weather, with dummies)
 # test accuracy: 0.97768 (for 20 epochs-no weather & dummies-rerun)
