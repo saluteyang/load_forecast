@@ -46,6 +46,15 @@ joined['Week_Year'] = joined.index.weekofyear
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
 joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
+
+# create lagged variables
+joined = joined.merge(joined.groupby(joined.index.date)['COAST'].mean().to_frame(),
+                                left_on='Date', right_index=True,
+                                suffixes=['_Hourly', '_DailyAve'])  # syntax different from join method
+joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
+joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
+joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
+
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
 
 # create training and testing data sets, generator will separate out the features and target
@@ -147,7 +156,7 @@ err_hist = []
 for i in range(52):
     a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[i*168: (i+1)*168, 0]
     err_hist.append(mean_abs_err(a1, a2))
-plt.plot(err_hist_rnn)
+plt.plot(err_hist)
 plt.show()
 
 # with open(f'models/dense_20_nd.pickle', 'wb') as pfile:
