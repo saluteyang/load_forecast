@@ -110,11 +110,12 @@ filter = joined.groupby(['Year', 'Week_Year'])['Off_Flag'].sum().reset_index()
 filter.rename(columns={'Off_Flag': 'Off_Hours'}, inplace=True)
 joined = joined.merge(filter, on=['Year', 'Week_Year'], how='left')
 cluster_data = joined[joined['Off_Hours']==48][['COAST', 'Year', 'Week_Year']]
-# create a within group counter to use for column labels after pivot
+# create a within group hour counter to use for column labels after pivot
 cluster_data['idx'] = cluster_data.groupby(['Year', 'Week_Year']).cumcount()
 cluster_data = cluster_data.pivot_table(index=['Year', 'Week_Year'], columns='idx', values='COAST')
-cluster_data = cluster_data.as_matrix()
 cluster_data = cluster_data[~np.isnan(cluster_data).any(axis=1)]
+week_counter = cluster_data.index  # save for later use
+cluster_data = cluster_data.as_matrix()
 
 
 def DTWDistance(s1, s2, w):
@@ -185,13 +186,45 @@ def k_means_clust(data, num_clust, num_iter, w=4):
 
 centroids = k_means_clust(cluster_data, 4, 100, 4)
 
-with open(f'centroids.pickle', 'wb') as pfile:
-    pickle.dump(centroids, pfile)
+# with open(f'centroids.pickle', 'wb') as pfile:
+#     pickle.dump(centroids, pfile)
 
-for i in centroids:
+with open(f"centroids.pickle", "rb") as pfile:
+    exec(f"centroids = pickle.load(pfile)")
+
+# plotting centroids
+for i in centroids[0]:
     plt.plot(i)
 
 plt.show()
+
+# with open(f"centroids.pickle", "rb") as pfile:
+#     exec(f"centroids = pickle.load(pfile)")
+
+# find assignment to centroids for the weeks
+# import operator
+# sorted_centroids = sorted(centroids[1].items(), key=operator.itemgetter(1))
+assignment = []
+week_num = []
+for cluster in centroids[1]:
+    print(cluster)
+    for i in centroids[1][cluster]:
+        print(i)
+        week_num.append(i)
+        assignment.append(cluster)
+
+pd_centroids = pd.DataFrame({'weeknum': week_num,
+                             'cluster': assignment})
+# pd_centroids.sort_values(by='weeknum', inplace=True)
+pd_week_counter = pd.DataFrame({'weeknum': range(len(week_counter)),
+                                'year': week_counter.to_frame().iloc[:, 0],
+                                'week_year': week_counter.to_frame().iloc[:, 1]})
+
+pd_centroids = pd_centroids.merge(pd_week_counter, on='weeknum')
+pd_centroids.groupby(['week_year', 'cluster'])['weeknum'].count()
+
+# why are the following week_num missing from the final assignments
+# [i for i in range(cluster_data.shape[0]) if i not in week_num]  # [0, 1, 16, 19]
 
 # animating plot ####################################
 import seaborn as sns
@@ -218,3 +251,61 @@ def animate(i):
 
 ani = animation.FuncAnimation(fig, animate, frames=45, repeat=True)
 ani.save('load.mp4', writer=writer)
+
+# times series decomposition
+# from statsmodels.tsa.seasonal import seasonal_decompose
+#
+# series = aggregate_load['2010']['COAST']
+# decomp = seasonal_decompose(series, model='additive', freq=1)
+# decomp.plot()
+# plt.show()
+
+import matplotlib.pylab as plt
+import numpy as np
+from numpy import fft
+import pandas as pd
+import holidays
+import pickle
+from fbprophet import Prophet
+
+with open('test.csv', 'r') as f:
+    aggregate_load = pd.read_csv(f, index_col=0)
+aggregate_load['COAST'] = aggregate_load['COAST']/1000  # source data units are in MW, here converted to GW
+aggregate_load = aggregate_load.set_index('Hour_End')
+aggregate_load.index = pd.to_datetime(aggregate_load.index)
+
+us_holidays = holidays.UnitedStates(years=range(2010, 2017))
+us_holidays = pd.DataFrame.from_dict(us_holidays, orient='index').reset_index()
+us_holidays.columns = ['ds', 'holiday']
+
+m = Prophet(holidays=us_holidays, changepoint_prior_scale=0.001)
+# m.add_seasonality(name='monthly', period=30.5, fourier_order=3)
+# m.add_country_holidays(country_name='US')
+
+series = aggregate_load['2010':'2016']['COAST']
+series = series.reset_index()
+series.columns = ['ds', 'y']
+m.fit(series)
+
+future = m.make_future_dataframe(periods=0)  # periods by default means days
+forecast = m.predict(future)
+fig_decomp = m.plot_components(forecast)
+plt.show()
+
+future = m.make_future_dataframe(periods=168, freq='H')
+forecast = m.predict(future)
+fig_forecast = m.plot(forecast)
+plt.show()
+
+with open(f'prophet_model.pickle', 'wb') as pfile:
+    pickle.dump(m, pfile)
+with open(f'prophet_forecast.pickle', 'wb') as pfile:
+    pickle.dump(forecast, pfile)
+
+forecast_wk = forecast[pd.to_datetime(forecast['ds']).isin \
+    (pd.date_range(start='2017-01-01', end='2017-01-08', freq='H'))][['ds', 'yhat_lower', 'yhat_upper', 'yhat']]
+test = aggregate_load['2017']['COAST'][:168]
+
+plt.plot(forecast_wk['yhat'].values)
+plt.plot(test.reset_index()['COAST'].values)
+plt.show()
