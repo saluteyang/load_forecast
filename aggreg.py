@@ -240,7 +240,8 @@ def choose_model(model, use_gen=False, out=True,
             pickle.dump(model, pfile)
         with open(f'temp_out/dense_temp_hist.pickle', 'wb') as pfile:
             pickle.dump(history, pfile)
-
+    else:
+        pass
 
 def main():
     print('processing input')
