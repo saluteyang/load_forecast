@@ -198,8 +198,8 @@ def choose_model(model, use_gen=False, out=True,
         train_gen, val_gen, test_gen = create_gen(train_data, test_data)
 
     if model == 'Dense'and use_gen:
-        model = build_model(train_data)
-        history = model.fit_generator(train_gen,
+        model_dense = build_model(train_data)
+        history_dense = model_dense.fit_generator(train_gen,
                                       epochs=20,
                                       steps_per_epoch=365,
                                       validation_data=val_gen,
@@ -208,8 +208,8 @@ def choose_model(model, use_gen=False, out=True,
                                           callbacks.ReduceLROnPlateau(factor=0.5, patience=3, verbose=1)
                                       ])
     elif model == 'Dense' and use_gen is False:
-        model = build_model(train_data)
-        history = model.fit(partial_train_data, partial_train_target,
+        model_dense = build_model(train_data)
+        history_dense = model_dense.fit(partial_train_data, partial_train_target,
                             epochs=60, batch_size=168,
                             validation_data=(val_data, val_target))
 
@@ -230,16 +230,20 @@ def choose_model(model, use_gen=False, out=True,
     else:
         print('This configuration of model has not been set up.')
 
+    # print(out, model)
+
     if out and model == 'RNN':
+        print('saving RNN model and history')
         with open(f'temp_out/rnn_temp.pickle', 'wb') as pfile:
             pickle.dump(model_rnn, pfile)
         with open(f'temp_out/rnn_temp_hist.pickle', 'wb') as pfile:
             pickle.dump(history_rnn, pfile)
     elif out and model == 'Dense':
+        print('saving Dense model and history')
         with open(f'temp_out/dense_temp.pickle', 'wb') as pfile:
-            pickle.dump(model, pfile)
+            pickle.dump(model_dense, pfile)
         with open(f'temp_out/dense_temp_hist.pickle', 'wb') as pfile:
-            pickle.dump(history, pfile)
+            pickle.dump(history_dense, pfile)
     else:
         pass
 
