@@ -252,7 +252,35 @@ def animate(i):
 ani = animation.FuncAnimation(fig, animate, frames=45, repeat=True)
 ani.save('load.mp4', writer=writer)
 
-# times series decomposition
+# alternative animation
+series_ani_onemon = series_ani['2010-01']
+series_ani_onemon = pd.concat([pd.Series(series_ani_onemon.values),
+                               pd.Series(range(series_ani_onemon.shape[0]))],
+                              axis=1)
+
+fig = plt.figure(figsize=(16, 10))
+ax = plt.axes(xlim=(0, 47), ylim=(6.5, 14.5))
+line, = ax.plot([], [], lw=2)
+
+def init():
+    line.set_data([], [])
+    return line,
+
+# x_data, y_data = [], []
+
+def animate(i):  # called sequentially, staring with 0
+    idx_start = int(i) + 48
+    x = list(range(0, 48))
+    y = list(series_ani_onemon.iloc[:, 0][(idx_start-48):idx_start].values)
+    line.set_data(x, y)
+    return line,
+
+
+anim = animation.FuncAnimation(fig, animate, init_func=init, frames=300, interval=20, blit=True)
+
+anim.save('load2.mp4', fps=30)
+
+# times series decomposition #############################
 # from statsmodels.tsa.seasonal import seasonal_decompose
 #
 # series = aggregate_load['2010']['COAST']

@@ -191,6 +191,8 @@ def build_rnn():
     return model
 
 model_rnn = build_rnn()
+model_rnn.summary()
+
 history_rnn = model_rnn.fit_generator(train_gen,
                                       steps_per_epoch=365,
                                       epochs=20,
