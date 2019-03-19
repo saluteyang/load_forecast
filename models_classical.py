@@ -253,6 +253,7 @@ ani = animation.FuncAnimation(fig, animate, frames=45, repeat=True)
 ani.save('load.mp4', writer=writer)
 
 # alternative animation
+series_ani = joined
 series_ani_onemon = series_ani['2010-01']
 series_ani_onemon = pd.concat([pd.Series(series_ani_onemon.values),
                                pd.Series(range(series_ani_onemon.shape[0]))],
@@ -260,6 +261,9 @@ series_ani_onemon = pd.concat([pd.Series(series_ani_onemon.values),
 
 fig = plt.figure(figsize=(16, 10))
 ax = plt.axes(xlim=(0, 47), ylim=(6.5, 14.5))
+ax.set_xlabel('Hour', fontsize=20)
+ax.set_ylabel('GW', fontsize=20)
+ax.tick_params(labelsize=15)
 line, = ax.plot([], [], lw=2)
 
 def init():

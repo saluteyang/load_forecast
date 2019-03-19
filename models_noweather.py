@@ -274,6 +274,23 @@ with open(f"models/rnn_20_wd_fin.pickle", "rb") as pfile:
 with open(f"models/rnn_20_wd_fin_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
+with open(f"models/crnn_20_wd_nw_32.pickle", "rb") as pfile:
+    exec(f"model_crnn = pickle.load(pfile)")
+with open(f"models/crnn_20_wd_nw_32_hist.pickle", "rb") as pfile:
+    exec(f"history_crnn = pickle.load(pfile)")
 
+test_gen = generator(test_data,
+                     lookback=lookback,
+                     delay=delay,
+                     min_index=0,
+                     max_index=None)
 
+test_metrics_crnn = model_crnn.evaluate_generator(test_gen, steps=1)
+test_mae = test_metrics_crnn[1]
+# using the following accuracy definition
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*1), 0].mean()))
 
+# shifted
+# test accuracy: 0.80151 (1 step, with dummies no weather, cnn + rnn)
+# test accuracy: 0.82494 (3 step, with dummies no weather, cnn + rnn)
+# test accuracy: 0.81818 (10 step, with dummies no weather, cnn + rnn)

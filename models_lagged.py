@@ -112,10 +112,17 @@ pred_plot(model=model0, test=test_data, test_target=test_target, pred_periods=16
 # training accuracy: 0.960 (here the score method returns R-square)
 # test accuracy: 0.903
 
+def mape(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs(y_true - y_pred)/y_true)
+
+mape(test_target[:24], y_pred[:24])
+# 0.02155 (for 24 hours ahead)
+
 from sklearn.ensemble import GradientBoostingRegressor
 
-alpha = 0.95
-model1 = GradientBoostingRegressor(min_samples_leaf=20, alpha=alpha, loss='quantile',
+alpha = 0.99
+model1 = GradientBoostingRegressor(min_samples_leaf=10, alpha=alpha, loss='quantile',
                                    n_estimators=100)
 model1.fit(train_data, train_target)
 
@@ -135,6 +142,31 @@ y_pred = model1.predict(test_data)
 print('training accuracy: {:.3f}'.format(model1.score(train_data, train_target)))
 print('test accuracy: {:.3f}'.format(model1.score(test_data, test_target)))
 
+mape(test_target[:24], y_pred[:24])
+# 0.02900 (for 24 hours ahead)
+
+# number of times upper and lower were breached
+temp = [x-y for x, y in zip(y_upper, test_target)]
+temp = np.array(temp)
+breach_h = len(temp[temp<0])
+print('{} breaches ({:.2%}) of the upper limit in a year'.format(breach_h, breach_h/len(temp)))
+
+temp2 = [y-x for x, y in zip(y_lower, test_target)]
+temp2 = np.array(temp2)
+breach_l = len(temp2[temp2<0])
+print('{} breaches ({:.2%}) of the lower limit in a year'.format(breach_l, breach_l/len(temp2)))
+
+# training accuracy: 0.952
+# test accuracy: 0.920
+
+# alpha 0.95
+# 1079 breaches (12.33%) of the upper limit in a year
+# 219 breaches (2.50%) of the lower limit in a year
+
+# alpha 0.99
+# 328 breaches (3.75%) of the upper limit in a year
+# 70 breaches (0.80%) of the lower limit in a year
+
 # plot 1 week actual and prediction interval
 periods = 168
 plt.plot(y_upper[:periods])
@@ -152,6 +184,67 @@ plt.show()
 mae_pct = 1 - np.mean(np.absolute(y_pred - test_target.values))/np.mean(test_target.values)
 # test accuracy: 0.94985 (decision tree)
 # test accuracy: 0.95358 (gradient-boosted trees)
+
+# prediction interval with xgboost  #############################
+
+# from scipy.stats import binom_test
+# from sklearn.base import BaseEstimator, RegressorMixin
+# from xgboost.sklearn import XGBRegressor
+# from functools import partial
+#
+# class XGBOOSTQUANTILE(BaseEstimator, RegressorMixin):
+#     def __init__(self, quant_alpha,quant_delta,quant_thres,quant_var,
+#     n_estimators = 100,max_depth = 3,reg_alpha = 5.,reg_lambda=1.0,gamma=0.5):
+#         self.quant_alpha = quant_alpha
+#         self.quant_delta = quant_delta
+#         self.quant_thres = quant_thres
+#         self.quant_var = quant_var
+#         #xgboost parameters
+#         self.n_estimators = n_estimators
+#         self.max_depth = max_depth
+#         self.reg_alpha= reg_alpha
+#         self.reg_lambda = reg_lambda
+#         self.gamma = gamma
+#         #keep xgboost estimator in memory
+#         self.clf = None
+#     def fit(self, X, y):
+#         def quantile_loss(y_true, y_pred,_alpha,_delta,_threshold,_var):
+#             x = y_true - y_pred
+#             grad = (x<(_alpha-1.0)*_delta)*(1.0-_alpha)- ((x>=(_alpha-1.0)*_delta)&
+#                                     (x<_alpha*_delta) )*x/_delta-_alpha*(x>_alpha*_delta)
+#             hess = ((x>=(_alpha-1.0)*_delta)& (x<_alpha*_delta) )/_delta
+#             _len = np.array([y_true]).size
+#             var = (2*np.random.randint(2, size=_len)-1.0)*_var
+#             grad = (np.abs(x)<_threshold )*grad - (np.abs(x)>=_threshold )*var
+#             hess = (np.abs(x)<_threshold )*hess + (np.abs(x)>=_threshold )
+#             return grad, hess
+#          self.clf = XGBRegressor(
+#          objective=partial( quantile_loss,
+#                             _alpha = self.quant_alpha,
+#                             _delta = self.quant_delta,
+#                             _threshold = self.quant_thres,
+#                             _var = self.quant_var),
+#                             n_estimators = self.n_estimators,
+#                             max_depth = self.max_depth,
+#                             reg_alpha =self.reg_alpha,
+#                             reg_lambda = self.reg_lambda,
+#                             gamma = self.gamma )
+#          self.clf.fit(X,y)
+#          return self
+#     def predict(self, X):
+#         y_pred = self.clf.predict(X)
+#         return y_pred
+#     def score(self, X, y):
+#         y_pred = self.clf.predict(X)
+#         score = (self.quant_alpha-1.0)*(y-y_pred)*(y<y_pred)+self.quant_alpha*(y-y_pred)* (y>=y_pred)
+#         score = 1./np.sum(score)
+#         return score
+#
+# model2 = GradientBoostingRegressor()
+# model2.fit(train_data, train_target)
+#
+# y_pred1 = model1.predict(test_data)
+# y_pred2 = model2.predict(test_data)
 
 # regression model  #########################################################################################
 

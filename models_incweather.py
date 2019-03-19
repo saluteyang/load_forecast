@@ -68,7 +68,9 @@ joined_keep[int_cols] = joined_keep[int_cols].applymap(lambda x: int(x))
 
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined_keep[joined_keep.index.year != 2017]
-test_data = joined_keep[joined_keep.index.year == 2017]
+test_data = pd.concat([train_data[-1440:],
+                      joined_keep[joined_keep.index.year == 2017]])
+# test_data = joined_keep[joined_keep.index.year == 2017]
 
 # added section for standardization
 scaler = preprocessing.MinMaxScaler()
@@ -149,7 +151,7 @@ with open(f"models/rnn_20_wd_ww.pickle", "rb") as pfile:
 with open(f"models/rnn_20_wd_ww_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
-loss_plot(history=history_rnn, skip_epoch=0)
+# loss_plot(history=history_rnn, skip_epoch=0)
 
 test_gen = generator(test_data,
                      lookback=lookback,
@@ -160,10 +162,24 @@ test_gen = generator(test_data,
 test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=1)
 test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
-print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*1, 0].mean()))
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*1), 0].mean()))
 # test accuracy: 0.86595 (1 step, with dummies and weather)
 # test accuracy: 0.85863 (3 step, with dummies and weather)
 # test accuracy: 0.78685 (10 step, with dummies and weather)
+
+# shifted
+# test accuracy: 0.77193 (1 step, with dummies and weather)
+# test accuracy: 0.84380 (3 step, with dummies and weather)
+# test accuracy: 0.82917 (10 step, with dummies and weather)
+
+predictions = model_rnn.predict_generator(test_gen, steps=52)
+
+err_hist_rnn = []
+for i in range(52):
+    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[1440+i*168: 1440+(i+1)*168, 0]
+    err_hist_rnn.append(mean_abs_err(a1, a2))
+plt.plot(err_hist_rnn)
+plt.show()
 
 pred_multiplot(model_rnn, test_gen, test_data)
 
@@ -218,4 +234,48 @@ pred_multiplot(model, test_gen, test_data)
 
 predictions = model.predict_generator(test_gen, steps=52)
 plt.plot(predictions)
+plt.show()
+
+with open(f"models/crnn_20_wd_ww.pickle", "rb") as pfile:
+    exec(f"model_crnn = pickle.load(pfile)")
+with open(f"models/crnn_20_wd_ww_hist.pickle", "rb") as pfile:
+    exec(f"history_crnn = pickle.load(pfile)")
+
+# loss_plot(history=history_crnn, skip_epoch=0)
+
+test_gen = generator(test_data,
+                     lookback=lookback,
+                     delay=delay,
+                     min_index=0,
+                     max_index=None)
+
+test_metrics_crnn = model_crnn.evaluate_generator(test_gen, steps=10)
+test_mae = test_metrics_crnn[1]
+# using the following accuracy definition
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*10), 0].mean()))
+
+# test accuracy: 0.86522 (1 step, with dummies and weather, cnn + rnn)
+# test accuracy: 0.83156 (3 step, with dummies and weather, cnn + rnn)
+# test accuracy: 0.76871 (10 step, with dummies and weather, cnn + rnn)
+
+# shifted
+# test accuracy: 0.77024 (1 step, with dummies and weather, cnn + rnn)
+# test accuracy: 0.83755 (3 step, with dummies and weather, cnn + rnn)
+# test accuracy: 0.83747(10 step, with dummies and weather, cnn + rnn)
+
+# pred_multiplot(model_crnn, test_gen, test_data)
+pred_multiplot2(model_crnn, test_gen, test_data)
+
+predictions = model_crnn.predict_generator(test_gen, steps=52)
+
+plt.plot(test_data[1440:, 0], label='target', alpha=0.5)
+plt.plot(predictions, label='pred', alpha=0.5)
+plt.legend()
+plt.show()
+
+err_hist_rnn = []
+for i in range(52):
+    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[1440+i*168: 1440+(i+1)*168, 0]
+    err_hist_rnn.append(mean_abs_err(a1, a2))
+plt.plot(err_hist_rnn)
 plt.show()

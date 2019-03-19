@@ -96,6 +96,38 @@ def pred_multiplot(model, test, test_target, steps=10, multi=[1, 3, 5, 10]):
     f.subplots_adjust(hspace=0.7)
     plt.show()
 
+def pred_multiplot2(model, test, test_target, steps=10, multi=[1, 3, 5, 10]):
+    predictions = model.predict_generator(test, steps=steps)
+
+    f, axarr = plt.subplots(2, 2, sharex=False)
+
+    line1, = axarr[0,0].plot(predictions[:168*multi[0]], label='pred')
+    line2, = axarr[0,0].plot(test_target[1440:(1440+168*multi[0]), 0], label='actual')
+    axarr[0,0].set_title('pred vs actual 1 step')
+    axarr[0,0].set_ylabel('load')
+
+    axarr[0,1].plot(predictions[:168*multi[1]], label='pred')
+    axarr[0,1].plot(test_target[1440:(1440+168*multi[1]), 0], label='actual')
+    axarr[0,1].set_title('pred vs actual 3 step')
+    axarr[0,1].set_ylabel('load')
+
+    axarr[1,0].plot(predictions[:168*multi[2]], label='pred')
+    axarr[1,0].plot(test_target[1440:(1440+168*multi[2]), 0], label='actual')
+    axarr[1,0].set_title('pred vs actual 5 step')
+    axarr[1,0].set_xlabel('periods')
+    axarr[1,0].set_ylabel('load')
+
+    axarr[1,1].plot(predictions[:168*multi[3]], label='pred')
+    axarr[1,1].plot(test_target[1440:(1440+168*multi[3]), 0], label='actual')
+    axarr[1,1].set_title('pred vs actual 10 step')
+    axarr[1,1].set_xlabel('periods')
+    axarr[1,1].set_ylabel('load')
+
+    plt.figlegend([line1, line2], ['pred', 'actual'], 'lower center')
+
+    f.subplots_adjust(hspace=0.7)
+    plt.show()
+
 # new generator function for samples and targets
 # move the target variable (regional load to predict) to the first column position
 def generator(data, lookback, delay, min_index, max_index,
