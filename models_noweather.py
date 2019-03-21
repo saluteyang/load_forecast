@@ -27,7 +27,6 @@ aggregate_load.index = pd.to_datetime(aggregate_load.index)
 joined = aggregate_load.groupby(aggregate_load.index).first()  
 joined = joined.dropna().copy()
 
-##################################
 # specify the region to forecast
 region = 'COAST'
 cols = [x for x in joined.columns if x!=region]
@@ -47,21 +46,25 @@ us_holidays = holidays.UnitedStates()  # this creates a dictionary
 joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 
-# create lagged variables
-joined = joined.merge(joined.groupby(joined.index.date)['COAST'].mean().to_frame(),
-                                left_on='Date', right_index=True,
-                                suffixes=['_Hourly', '_DailyAve'])  # syntax different from join method
-joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
-joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
-joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
-
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
 joined = joined.dropna()
 
+# create lagged variables
+# joined = joined.merge(joined.groupby(joined.index.date)['COAST'].mean().to_frame(),
+#                                 left_on='Date', right_index=True,
+#                                 suffixes=['_Hourly', '_DailyAve'])  # syntax different from join method
+# joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
+# joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
+# joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
+#
+# joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
+# joined = joined.dropna()
+
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
+# test_data = pd.concat([train_data[-1440:],
+#                       joined[joined.index.year == 2017]])
 test_data = joined[joined.index.year == 2017]
-
 # standardization for with dummy version
 scaler = preprocessing.MinMaxScaler()
 train_data = scaler.fit_transform(train_data.values)
@@ -71,21 +74,8 @@ test_data = scaler.transform(test_data.values)
 # test_data = test_data[~np.isnan(test_data).any(axis=1)]
 #######################################
 
-# testing no dummies version
-joined = joined['COAST']
-
-# create training and testing data sets, generator will separate out the features and target
-train_data = joined[joined.index.year != 2017]
-test_data = joined[joined.index.year == 2017]
-
-# standardization for no dummy version
-scaler = preprocessing.MinMaxScaler()
-train_data = scaler.fit_transform(train_data.values.reshape(-1, 1))
-test_data = scaler.transform(test_data.values.reshape(-1, 1))
-
-# create generators using udf in helpers file
 lookback = 1440  # 60 days
-delay = 24  # how far into the future is the target
+delay = 0  # how far into the future is the target
 
 train_gen = generator(train_data,
                       lookback=lookback,
@@ -97,9 +87,6 @@ val_gen = generator(train_data,
                     delay=delay,
                     min_index=50001,
                     max_index=None)
-
-# val_steps = (60000 - 50001 - lookback)
-# test_steps = (len(joined) - 60001 - lookback)
 
 # regression model  #########################################################################################
 
@@ -130,21 +117,6 @@ test_metrics = model.evaluate_generator(test_gen, steps=10)
 test_mae = test_metrics[1]
 # using the following accuracy definition
 print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
-# test accuracy: 0.83433 (1 step, no dummies)
-# test accuracy: 0.82919 (3 step, no dummies)
-# test accuracy: 0.76700 (10 step, no dummies)
-
-# test accuracy: 0.85912 (1 step, with dummies)  -- best performer, day of year doesn't help here (?)
-# test accuracy: 0.81311 (3 step, with dummies)
-# test accuracy: 0.75873 (10 step, with dummies)
-
-# test accuracy: 0.33058 (1 step, with dummies, earlystop)
-# test accuracy: 0.21906 (3 step, with dummies, earlystop)
-# test accuracy: 0.17096 (10 step, with dummies, earlystop)
-
-# test accuracy: 0.70826 (1 step, with dummies, correct steps per epoch) - wrong generator after previous model run
-# test accuracy: 0.65070 (3 step, with dummies, correct steps per epoch)
-# test accuracy: 0.50023 (10 step, with dummies, correct steps per epoch)
 
 # test accuracy: 0.64582 (1 step, with dummies, adam opt, reduce on plateau, 80, 40, dropout)
 # test accuracy: 0.56213 (3 step, with dummies, adam opt, reduce on plateau, 80, 40, dropout)
@@ -152,27 +124,7 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 
 loss_plot(history=history, skip_epoch=0)
 pred_plot(model=model, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
-pred_multiplot(model, test_gen, test_data)
-
-predictions = model.predict_generator(test_gen, steps=52)
-
-err_hist = []
-for i in range(52):
-    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[i*168: (i+1)*168, 0]
-    err_hist.append(mean_abs_err(a1, a2))
-plt.plot(err_hist)
-plt.show()
-
-# with open(f'models/dense_20_nd.pickle', 'wb') as pfile:
-#     pickle.dump(model, pfile)
-# with open(f'models/dense_20_nd_hist.pickle', 'wb') as pfile:
-#     pickle.dump(history, pfile)
-
-# best performer
-# with open(f"models/dense_20_rev.pickle", "rb") as pfile:
-#     exec(f"model = pickle.load(pfile)")
-# with open(f"models/dense_20_rev_hist.pickle", "rb") as pfile:
-#     exec(f"history = pickle.load(pfile)")
+pred_multiplot2(model, test_data)
 
 with open(f"models/dense_80-40_wd_do_lr_adam_fin.pickle", "rb") as pfile:
     exec(f"model = pickle.load(pfile)")
@@ -181,7 +133,6 @@ with open(f"models/dense_80-40_wd_do_lr_adam_fin_hist.pickle", "rb") as pfile:
 
 # the RNN models ####################################################################
 
-# early stopping?
 def build_rnn():
     model = models.Sequential()
     model.add(layers.GRU(64, input_shape=(None, train_data.shape[-1])))
@@ -214,28 +165,6 @@ test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=10)
 test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
 print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
-# test accuracy: 0.83605 (1 step, no dummies)
-# test accuracy: 0.84380 (3 step, no dummies)
-# test accuracy: 0.79899 (10 step, no dummies)
-
-# test accuracy: 0.85972 (1 step, no dummies, 20 epochs)
-# test accuracy: 0.85584 (3 step, no dummies, 20 epochs)
-# test accuracy: 0.78466 (10 step, no dummies, 20 epochs)
-
-# test accuracy: 0.85781 (1 step, no dummies, 20 epochs, 2 layers, dropout)
-# test accuracy: 0.77481 (10 step, no dummies, 20 epochs, 2 layers, dropout)
-
-# test accuracy: 0.90052 (1 step, with dummies (inc dayofyear), 20 epochs)
-# test accuracy: 0.88409 (3 step, with dummies (inc dayofyear), 20 epochs)
-# test accuracy: 0.80995 (10 step, with dummies (inc dayofyear), 20 epochs)
-
-# test accuracy: 0.77204 (1 step, with dummies (inc dayofyear), 2 layers, dropout, earlystop)
-# test accuracy: 0.75924 (3 step, with dummies (inc dayofyear), 2 layers, dropout, earlystop)
-# test accuracy: 0.73952 (10 step, with dummies (inc dayofyear), 2 layers, dropout, earlystop)
-
-# test accuracy: 0.79798 (1 step, with dummies (inc dayofyear), earlystop)
-# test accuracy: 0.80139 (3 step, with dummies (inc dayofyear), earlystop)
-# test accuracy: 0.77021 (10 step, with dummies (inc dayofyear), earlystop)
 
 # final model
 # test accuracy: 0.85756 (1 step, with dummies (inc dayofyear), correct steps per epoch, 20 epochs)
@@ -248,7 +177,7 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 
 loss_plot(history=history_rnn, skip_epoch=0)
 pred_plot(model=model_rnn, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
-pred_multiplot(model_rnn, test_gen, test_data)
+pred_multiplot2(model_rnn, test_data)
 
 predictions = model_rnn.predict_generator(test_gen, steps=52)
 
@@ -279,18 +208,67 @@ with open(f"models/crnn_20_wd_nw_32.pickle", "rb") as pfile:
 with open(f"models/crnn_20_wd_nw_32_hist.pickle", "rb") as pfile:
     exec(f"history_crnn = pickle.load(pfile)")
 
+with open(f"models/rnn_20_wd_nw.pickle", "rb") as pfile:
+    exec(f"model_rnn = pickle.load(pfile)")
+with open(f"models/rnn_20_wd_nw_hist.pickle", "rb") as pfile:
+    exec(f"history_rnn = pickle.load(pfile)")
+
+with open(f"models/rnn_20_wd_nw2.pickle", "rb") as pfile:
+    exec(f"model_rnn = pickle.load(pfile)")
+with open(f"models/rnn_20_wd_nw2_hist.pickle", "rb") as pfile:
+    exec(f"history_rnn = pickle.load(pfile)")
+
 test_gen = generator(test_data,
                      lookback=lookback,
                      delay=delay,
                      min_index=0,
                      max_index=None)
 
-test_metrics_crnn = model_crnn.evaluate_generator(test_gen, steps=1)
-test_mae = test_metrics_crnn[1]
+test_metrics_rnn = model_rnn.evaluate_generator(test_gen, steps=10)
+test_mae = test_metrics_rnn[1]
 # using the following accuracy definition
-print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*1), 0].mean()))
+print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*10), 0].mean()))
 
-# shifted
 # test accuracy: 0.80151 (1 step, with dummies no weather, cnn + rnn)
 # test accuracy: 0.82494 (3 step, with dummies no weather, cnn + rnn)
 # test accuracy: 0.81818 (10 step, with dummies no weather, cnn + rnn)
+
+# shifted
+# test accuracy: 0.76606 (1 step, with dummies no weather, cnn + rnn)
+# test accuracy: 0.80622 (3 step, with dummies no weather, cnn + rnn)
+# test accuracy: 0.81057 (10 step, with dummies no weather, cnn + rnn)
+
+# shifted
+# test accuracy: 0.75857 (1 step, with dummies no weather, rnn)
+# test accuracy: 0.83246 (3 step, with dummies no weather, rnn)
+# test accuracy: 0.84447 (10 step, with dummies no weather, rnn)
+
+# y_t, y_p, err = pred_plot_per_step2(test_data, model_rnn)
+pred_plot_per_step2(test_data, model_rnn)
+mape_rpt2(test_data, model_rnn)
+
+# average MAPE over 52 steps 10.1% (RNN)
+
+# test mape 1 step: 0.18928
+# test mape 3 step: 0.13670
+# test mape 10 step: 0.11217
+
+pred_plot_per_step2(test_data, model_crnn)
+pred_plot_per_step2(test_data, model_crnn, metric='mae')
+pred_plot_per_step2(test_data, model_rnn)
+pred_plot_per_step2(test_data, model_rnn, metric='mae')
+mape_rpt2(test_data, model_crnn)
+
+# test mape 1 step: 0.20159
+# test mape 3 step: 0.17606
+# test mape 10 step: 0.17760
+
+pred_multiplot2(model_rnn, test_data)
+pred_multiplot2(model_crnn, test_data)
+
+# single plot prediction vs actual
+pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[1])
+pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
+pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[10,11])
+pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])
+pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[32,33])

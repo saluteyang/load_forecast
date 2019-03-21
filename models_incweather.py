@@ -4,22 +4,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import holidays
-from keras import models
-from keras import layers
-from keras import callbacks
+from keras import models, layers, callbacks
 import os
 import statsmodels.tsa.api as smt
 import seaborn as sns
 import matplotlib.gridspec as gs
 from sklearn.tree import DecisionTreeRegressor
 from sklearn import preprocessing
-import numpy as np
 import pickle
 
 from helpers import *
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-
 
 # data processing step #############################
 # import processed data; if using other profiles, run section in profile_proc.py and continue below ###############
@@ -40,43 +36,40 @@ joined = joined.dropna().copy()
 with open('houston_weather.csv', 'r') as f:
     weather = pd.read_csv(f, index_col=0)
 
-joined = joined['COAST']
 joined = aggregate_load.join(weather, how='inner')  # joining on index
 joined = joined.groupby(joined.index).first()  # duplicate index due to additional hour in Nov due to DST
-joined_keep = joined[['COAST', 'Drybulb', 'Humidity']].dropna().copy()
+joined = joined[['COAST', 'Drybulb', 'Humidity']].dropna().copy()
 
 # create indicator variables
-joined_keep['Hour_Num'] = joined_keep.index.hour
-joined_keep['Day_Num'] = joined_keep.index.weekday  # Monday is 0
-joined_keep['Wknd_Flag'] = (joined_keep.index.weekday > 4) * 1
-joined_keep['Date'] = joined_keep.index.date
-joined_keep['Month'] = joined_keep.index.month
-joined_keep['Day'] = joined_keep.index.day
-joined_keep['Day_Year'] = joined_keep.index.dayofyear
-joined_keep['Week_Year'] = joined_keep.index.weekofyear
+joined['Hour_Num'] = joined.index.hour
+joined['Day_Num'] = joined.index.weekday  # Monday is 0
+joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
+joined['Date'] = joined.index.date
+joined['Month'] = joined.index.month
+joined['Day'] = joined.index.day
+joined['Day_Year'] = joined.index.dayofyear
+joined['Week_Year'] = joined.index.weekofyear
 
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
-joined_keep['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined_keep['Date']]
+joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 # to explicitly use the lambda function for the same effect as above
-# joined_keep['Holiday_Flag'] = [(lambda x: (x in us_holidays) * 1)(x) for x in joined_keep['Date']]
-joined_keep['Off_Flag'] = joined_keep[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
-joined_keep = joined_keep.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
-joined_keep = joined_keep.dropna()
+# joined['Holiday_Flag'] = [(lambda x: (x in us_holidays) * 1)(x) for x in joined['Date']]
+joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
+joined = joined.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
+joined = joined.dropna()
 int_cols = ['Hour_Num', 'Day_Num', 'Day', 'Month', 'Day_Year', 'Week_Year', 'Off_Flag', 'Drybulb', 'Humidity']
-joined_keep[int_cols] = joined_keep[int_cols].applymap(lambda x: int(x))
-
+joined[int_cols] = joined[int_cols].applymap(lambda x: int(x))
 
 # create training and testing data sets, generator will separate out the features and target
-train_data = joined_keep[joined_keep.index.year != 2017]
+train_data = joined[joined.index.year != 2017]
 test_data = pd.concat([train_data[-1440:],
-                      joined_keep[joined_keep.index.year == 2017]])
-# test_data = joined_keep[joined_keep.index.year == 2017]
+                      joined[joined.index.year == 2017]])
+# test_data = joined[joined.index.year == 2017]
 
 # added section for standardization
 scaler = preprocessing.MinMaxScaler()
 train_data = scaler.fit_transform(train_data)
 test_data = scaler.transform(test_data)
-
 
 # create generators using udf in helpers file
 lookback = 1440  # 60 days
@@ -172,20 +165,9 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*1), 0].
 # test accuracy: 0.84380 (3 step, with dummies and weather)
 # test accuracy: 0.82917 (10 step, with dummies and weather)
 
-predictions = model_rnn.predict_generator(test_gen, steps=52)
+pred_plot_per_step2(test_data, model_crnn)
 
-err_hist_rnn = []
-for i in range(52):
-    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[1440+i*168: 1440+(i+1)*168, 0]
-    err_hist_rnn.append(mean_abs_err(a1, a2))
-plt.plot(err_hist_rnn)
-plt.show()
-
-pred_multiplot(model_rnn, test_gen, test_data)
-
-predictions = model_rnn.predict_generator(test_gen, steps=52)
-plt.plot(predictions)
-plt.show()
+pred_multiplot2(model_rnn, test_data)
 
 # Dense model
 def build_model():
@@ -230,11 +212,7 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 # test accuracy: 0.78907 (3 step, with dummies and weather)
 # test accuracy: 0.75699 (10 step, with dummies and weather)
 
-pred_multiplot(model, test_gen, test_data)
-
-predictions = model.predict_generator(test_gen, steps=52)
-plt.plot(predictions)
-plt.show()
+pred_multiplot2(model, test_data)
 
 with open(f"models/crnn_20_wd_ww.pickle", "rb") as pfile:
     exec(f"model_crnn = pickle.load(pfile)")
@@ -263,19 +241,7 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*10), 0]
 # test accuracy: 0.83755 (3 step, with dummies and weather, cnn + rnn)
 # test accuracy: 0.83747(10 step, with dummies and weather, cnn + rnn)
 
-# pred_multiplot(model_crnn, test_gen, test_data)
-pred_multiplot2(model_crnn, test_gen, test_data)
+pred_multiplot2(model_crnn, test_data)
 
-predictions = model_crnn.predict_generator(test_gen, steps=52)
+pred_plot_per_step2(test_data, model_crnn)
 
-plt.plot(test_data[1440:, 0], label='target', alpha=0.5)
-plt.plot(predictions, label='pred', alpha=0.5)
-plt.legend()
-plt.show()
-
-err_hist_rnn = []
-for i in range(52):
-    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[1440+i*168: 1440+(i+1)*168, 0]
-    err_hist_rnn.append(mean_abs_err(a1, a2))
-plt.plot(err_hist_rnn)
-plt.show()

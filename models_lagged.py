@@ -7,6 +7,7 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn import preprocessing
 import pickle
 from helpers import *
+from sklearn.ensemble import GradientBoostingRegressor
 
 sns.set()
 
@@ -34,68 +35,51 @@ joined = joined['COAST']
 # if running with weather data ##########################################
 joined = aggregate_load.join(weather, how='inner')  # joining on index
 joined = joined.groupby(joined.index).first()  # duplicate index due to additional hour in Nov due to DST
-joined_keep = joined[['COAST', 'Drybulb', 'Humidity']].dropna().copy()
+joined = joined[['COAST', 'Drybulb', 'Humidity']].dropna().copy()
 
 # create indicator variables
-joined_keep['Hour_Num'] = joined_keep.index.hour
-joined_keep['Day_Num'] = joined_keep.index.weekday  # Monday is 0
-joined_keep['Wknd_Flag'] = (joined_keep.index.weekday > 4) * 1
-joined_keep['Date'] = joined_keep.index.date
+joined['Hour_Num'] = joined.index.hour
+joined['Day_Num'] = joined.index.weekday  # Monday is 0
+joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
+joined['Date'] = joined.index.date
 
 # add holidays flag
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
-joined_keep['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined_keep['Date']]
+joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 # to explicitly use the lambda function for the same effect as above
-# joined_keep['Holiday_Flag'] = [(lambda x: (x in us_holidays) * 1)(x) for x in joined_keep['Date']]
-joined_keep['Off_Flag'] = joined_keep[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
+# joined['Holiday_Flag'] = [(lambda x: (x in us_holidays) * 1)(x) for x in joined['Date']]
+joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 
 # create lagged variables
-joined_keep = joined_keep.merge(joined_keep.groupby(joined_keep.index.date)['COAST'].mean().to_frame(),
+joined = joined.merge(joined.groupby(joined.index.date)['COAST'].mean().to_frame(),
                                 left_on='Date', right_index=True,
                                 suffixes=['_Hourly', '_DailyAve'])  # syntax different from join method
-joined_keep['COAST_Hourly_Pre_Day'] = joined_keep['COAST_Hourly'].shift(1, 'd').to_frame()
-joined_keep['COAST_Hourly_Pre_Wk_Day'] = joined_keep['COAST_Hourly'].shift(7, 'd').to_frame()
-joined_keep['COAST_DailyAve_Pre_Day'] = joined_keep['COAST_DailyAve'].shift(1, 'd').to_frame()
-
-# joined_keep[joined_keep.isnull().any(axis=1)]
-joined_keep = joined_keep.dropna()
-joined_keep = joined_keep.drop(columns=['Date', 'COAST_DailyAve', 'Wknd_Flag', 'Holiday_Flag'])
-int_cols = ['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']
-joined_keep[int_cols] = joined_keep[int_cols].applymap(lambda x: int(x))
-
-# create training and testing data sets
-train_data = joined_keep[joined_keep.index.year != 2017].drop(columns=['COAST_Hourly'])
-train_target = joined_keep[joined_keep.index.year != 2017]['COAST_Hourly']
-test_data = joined_keep[joined_keep.index.year == 2017].drop(columns=['COAST_Hourly'])
-test_target = joined_keep[joined_keep.index.year == 2017]['COAST_Hourly']
-###############################################################################
-# two corrections (train, val time order; standardization)
-# create lagged variables
-joined = joined.to_frame().merge(joined.groupby(joined.index.date).mean().to_frame(),
-                                left_index=True, right_index=True,
-                                suffixes=['_Hourly', '_DailyAve'], how='outer')  # syntax different from join method
-joined = joined.fillna(method='ffill')
 joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
 joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
 joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
-joined = joined.dropna()
 
-# hold out 2017 data
-train_data = joined[joined.index.year != 2017].drop(columns='COAST_Hourly')
+# joined[joined.isnull().any(axis=1)]
+joined = joined.dropna()
+joined = joined.drop(columns=['Date', 'COAST_DailyAve', 'Wknd_Flag', 'Holiday_Flag'])
+int_cols = ['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity']
+joined[int_cols] = joined[int_cols].applymap(lambda x: int(x))
+
+# create training and testing data sets
+train_data = joined[joined.index.year != 2017].drop(columns=['COAST_Hourly'])
 train_target = joined[joined.index.year != 2017]['COAST_Hourly']
-test_data = joined[joined.index.year == 2017].drop(columns='COAST_Hourly')
+test_data = joined[joined.index.year == 2017].drop(columns=['COAST_Hourly'])
 test_target = joined[joined.index.year == 2017]['COAST_Hourly']
 
 # added section for standardization
-scaler = preprocessing.MinMaxScaler()
-train_data = scaler.fit_transform(train_data)
-test_data = scaler.transform(test_data)
+# scaler = preprocessing.MinMaxScaler()
+# train_data = scaler.fit_transform(train_data)
+# test_data = scaler.transform(test_data)
 
 # all but the last 10000 used for training, val is the rest
-partial_train_data = train_data[:-10000]
-val_data = train_data[-10000:]
-partial_train_target = train_target[:-10000]
-val_target = train_target[-10000:]
+# partial_train_data = train_data[:-10000]
+# val_data = train_data[-10000:]
+# partial_train_target = train_target[:-10000]
+# val_target = train_target[-10000:]
 
 # section C: different modelling approaches
 # decision tree model (baseline?)  ###########################################################################
@@ -112,16 +96,12 @@ pred_plot(model=model0, test=test_data, test_target=test_target, pred_periods=16
 # training accuracy: 0.960 (here the score method returns R-square)
 # test accuracy: 0.903
 
-def mape(y_true, y_pred):
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    return np.mean(np.abs(y_true - y_pred)/y_true)
-
 mape(test_target[:24], y_pred[:24])
 # 0.02155 (for 24 hours ahead)
 
-from sklearn.ensemble import GradientBoostingRegressor
+# gradient boosting regressor (quantile) model #######################
 
-alpha = 0.99
+alpha = 0.99  # use 0.99 for y_upper and 0.95 for y_lower
 model1 = GradientBoostingRegressor(min_samples_leaf=10, alpha=alpha, loss='quantile',
                                    n_estimators=100)
 model1.fit(train_data, train_target)
@@ -142,19 +122,48 @@ y_pred = model1.predict(test_data)
 print('training accuracy: {:.3f}'.format(model1.score(train_data, train_target)))
 print('test accuracy: {:.3f}'.format(model1.score(test_data, test_target)))
 
-mape(test_target[:24], y_pred[:24])
+mape(test_target[:48], y_pred[:48])
 # 0.02900 (for 24 hours ahead)
+# 0.02645 (for 48 hours ahead)
+
+# plot daily forecast MAPE over horizon
+plt.clf()
+mape_hist = []
+steps = len(y_pred)//24
+for i in range(steps):
+    a1, a2 = test_target[i * 24: (i + 1) * 24], y_pred[i * 24: (i + 1) * 24]
+    mape_hist.append(mape(a1, a2))
+plt.plot(mape_hist)
+plt.show()
+
+# average MAPE over a year
+np.mean(mape_hist)
+# 0.04627
+np.mean(sorted(mape_hist)[:-30])
+
+# plot forecast (inc interval) again actual
+plt.clf()
+# plt.plot(y_lower[:168], '-', y_upper[:168], '-')
+plt.xlabel('Hour')
+plt.ylabel('GW')
+plt.gca().fill_between(range(len(y_upper[:168])), y_lower[:168], y_upper[:168],
+                       facecolors='b', alpha=0.3)
+plt.plot(range(len(y_upper[:168])), y_pred[:168], '--', c='red', label='prediction')
+plt.plot(range(len(y_upper[:168])), test_target[:168], '-', c='black', label='actual')
+plt.legend(loc=2)
+plt.savefig('quantile_reg_168.png', dpi=800)
+# plt.show()
 
 # number of times upper and lower were breached
-temp = [x-y for x, y in zip(y_upper, test_target)]
-temp = np.array(temp)
-breach_h = len(temp[temp<0])
-print('{} breaches ({:.2%}) of the upper limit in a year'.format(breach_h, breach_h/len(temp)))
-
-temp2 = [y-x for x, y in zip(y_lower, test_target)]
-temp2 = np.array(temp2)
-breach_l = len(temp2[temp2<0])
-print('{} breaches ({:.2%}) of the lower limit in a year'.format(breach_l, breach_l/len(temp2)))
+# temp = [x-y for x, y in zip(y_upper, test_target)]
+# temp = np.array(temp)
+# breach_h = len(temp[temp<0])
+# print('{} breaches ({:.2%}) of the upper limit in a year'.format(breach_h, breach_h/len(temp)))
+#
+# temp2 = [y-x for x, y in zip(y_lower, test_target)]
+# temp2 = np.array(temp2)
+# breach_l = len(temp2[temp2<0])
+# print('{} breaches ({:.2%}) of the lower limit in a year'.format(breach_l, breach_l/len(temp2)))
 
 # training accuracy: 0.952
 # test accuracy: 0.920
@@ -174,10 +183,6 @@ plt.plot(y_lower[:periods])
 plt.plot(y_pred[:periods])
 plt.plot(test_target.values[:periods], linestyle='dashed', color='black')
 plt.show()
-
-
-# training accuracy: 0.952
-# test accuracy: 0.921
 
 # using accuracy definition as below
 # mae_pct = 1 - np.mean(abs(y_pred - test_target.values.reshape(len(test_target.values), 1)))/np.mean(test_target.values)
@@ -296,18 +301,10 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_target.mean()))
 # train_data = train_data.drop(columns=['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity'])
 # test_data = test_data.drop(columns=['Hour_Num', 'Day_Num', 'Off_Flag', 'Drybulb', 'Humidity'])
 
-partial_train_data = partial_train_data.values
-partial_train_target = partial_train_target.values[:-336]
-test_data = test_data.values
-test_target = test_target.values[:-336]
-val_data = val_data.values
-val_target = val_target.values[:-336]
-
 # use this part with final version
 partial_train_target = partial_train_target.values[336:]
 test_target = test_target.values[336:]
 val_target = val_target.values[336:]
-
 
 # redimension datasets for RNN
 def rnn_redim(data, lookback=336):

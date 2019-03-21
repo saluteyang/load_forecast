@@ -1,9 +1,15 @@
+
+import seaborn as sns
+import matplotlib.animation as animation
 import matplotlib.pylab as plt
 import numpy as np
 from numpy import fft
 import pandas as pd
 import holidays
 import pickle
+from fbprophet import Prophet
+
+sns.set()
 
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
@@ -49,39 +55,6 @@ extrapolation = fourierExtrapolation(x, n_predict, n_harm=5)
 plt.plot(np.arange(0, x.size), x, 'b', label='x', linewidth=3)
 plt.plot(np.arange(0, extrapolation.size), extrapolation, 'r', label='extrapolation')
 plt.legend()
-plt.show()
-
-# fourier harmonics ???
-# hourly harmonic (pattern in a day)
-# daily harmonic (pattern in a week)
-# monthly harmonic (pattern in a year)
-
-
-import plotly.plotly as py
-
-Fs = 150.0;  # sampling rate
-Ts = 1.0/Fs; # sampling interval
-t = np.arange(0,1,Ts) # time vector
-
-ff = 5;   # frequency of the signal
-y = np.sin(2*np.pi*ff*t)
-
-n = len(y) # length of the signal
-k = np.arange(n)
-T = n/Fs
-frq = k/T # two sides frequency range
-frq = frq[range(int(n/2))] # one side frequency range
-
-Y = np.fft.fft(y)/n # fft computing and normalization
-Y = Y[range(int(n/2))]
-
-fig, ax = plt.subplots(2, 1)
-ax[0].plot(t,y)
-ax[0].set_xlabel('Time')
-ax[0].set_ylabel('Amplitude')
-ax[1].plot(frq, abs(Y), 'r') # plotting the spectrum
-ax[1].set_xlabel('Freq (Hz)')
-ax[1].set_ylabel('|Y(freq)|')
 plt.show()
 
 # DTW clustering ####################################
@@ -195,11 +168,8 @@ with open(f"centroids.pickle", "rb") as pfile:
 # plotting centroids
 for i in centroids[0]:
     plt.plot(i)
-
+plt.savefig('centroids.png', dpi=600, bbox_inches="tight")
 plt.show()
-
-# with open(f"centroids.pickle", "rb") as pfile:
-#     exec(f"centroids = pickle.load(pfile)")
 
 # find assignment to centroids for the weeks
 # import operator
@@ -227,9 +197,7 @@ pd_centroids.groupby(['week_year', 'cluster'])['weeknum'].count()
 # [i for i in range(cluster_data.shape[0]) if i not in week_num]  # [0, 1, 16, 19]
 
 # animating plot ####################################
-import seaborn as sns
-import matplotlib.animation as animation
-sns.set()
+
 # series to animate
 series_ani = joined
 
@@ -279,26 +247,10 @@ def animate(i):  # called sequentially, staring with 0
     line.set_data(x, y)
     return line,
 
-
 anim = animation.FuncAnimation(fig, animate, init_func=init, frames=300, interval=20, blit=True)
-
 anim.save('load2.mp4', fps=30)
 
 # times series decomposition #############################
-# from statsmodels.tsa.seasonal import seasonal_decompose
-#
-# series = aggregate_load['2010']['COAST']
-# decomp = seasonal_decompose(series, model='additive', freq=1)
-# decomp.plot()
-# plt.show()
-
-import matplotlib.pylab as plt
-import numpy as np
-from numpy import fft
-import pandas as pd
-import holidays
-import pickle
-from fbprophet import Prophet
 
 with open('test.csv', 'r') as f:
     aggregate_load = pd.read_csv(f, index_col=0)
@@ -319,20 +271,30 @@ series = series.reset_index()
 series.columns = ['ds', 'y']
 m.fit(series)
 
+# do not include forecast for decomp plots
 future = m.make_future_dataframe(periods=0)  # periods by default means days
 forecast = m.predict(future)
 fig_decomp = m.plot_components(forecast)
+
+plt.savefig('ts_decomp.png', dpi=1000, bbox_inches="tight")
 plt.show()
 
+# forecast next 168 hours
 future = m.make_future_dataframe(periods=168, freq='H')
 forecast = m.predict(future)
 fig_forecast = m.plot(forecast)
+
 plt.show()
 
-with open(f'prophet_model.pickle', 'wb') as pfile:
-    pickle.dump(m, pfile)
-with open(f'prophet_forecast.pickle', 'wb') as pfile:
-    pickle.dump(forecast, pfile)
+# with open(f'prophet_model.pickle', 'wb') as pfile:
+#     pickle.dump(m, pfile)
+# with open(f'prophet_forecast.pickle', 'wb') as pfile:
+#     pickle.dump(forecast, pfile)
+
+with open(f"prophet_model.pickle", "rb") as pfile:
+    exec(f"m = pickle.load(pfile)")
+with open(f"prophet_forecast.pickle", "rb") as pfile:
+    exec(f"forecast = pickle.load(pfile)")
 
 forecast_wk = forecast[pd.to_datetime(forecast['ds']).isin \
     (pd.date_range(start='2017-01-01', end='2017-01-08', freq='H'))][['ds', 'yhat_lower', 'yhat_upper', 'yhat']]
