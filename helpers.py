@@ -64,40 +64,8 @@ def pred_plot(model, test, test_target, pred_periods):
     plt.legend()
     plt.show()
 
-def pred_multiplot(model, test, test_target, steps=10, multi=[1, 3, 5, 10]):
-    predictions = model.predict_generator(test, steps=steps)
-
-    f, axarr = plt.subplots(2, 2, sharex=False)
-
-    line1, = axarr[0,0].plot(predictions[:168*multi[0]], label='pred')
-    line2, = axarr[0,0].plot(test_target[:168*multi[0], 0], label='actual')
-    axarr[0,0].set_title('pred vs actual 1 step')
-    axarr[0,0].set_ylabel('load')
-
-    axarr[0,1].plot(predictions[:168*multi[1]], label='pred')
-    axarr[0,1].plot(test_target[:168*multi[1], 0], label='actual')
-    axarr[0,1].set_title('pred vs actual 3 step')
-    axarr[0,1].set_ylabel('load')
-
-    axarr[1,0].plot(predictions[:168*multi[2]], label='pred')
-    axarr[1,0].plot(test_target[:168*multi[2], 0], label='actual')
-    axarr[1,0].set_title('pred vs actual 5 step')
-    axarr[1,0].set_xlabel('periods')
-    axarr[1,0].set_ylabel('load')
-
-    axarr[1,1].plot(predictions[:168*multi[3]], label='pred')
-    axarr[1,1].plot(test_target[:168*multi[3], 0], label='actual')
-    axarr[1,1].set_title('pred vs actual 10 step')
-    axarr[1,1].set_xlabel('periods')
-    axarr[1,1].set_ylabel('load')
-
-    plt.figlegend([line1, line2], ['pred', 'actual'], 'lower center')
-
-    f.subplots_adjust(hspace=0.7)
-    plt.show()
-
-def pred_multiplot2(model, test_data, steps=10, multi=[1, 3, 5, 10],
-                    lookback=1440, delay=24):
+def pred_multiplot(model, test_data, test_target, steps=10, multi=[1, 3, 5, 10],
+                   lookback=336, delay=0):
     test_gen = generator(test_data,
                          lookback=lookback,
                          delay=delay,
@@ -108,23 +76,23 @@ def pred_multiplot2(model, test_data, steps=10, multi=[1, 3, 5, 10],
     f, axarr = plt.subplots(2, 2, sharex=False)
 
     line1, = axarr[0,0].plot(predictions[:168*multi[0]], label='pred', alpha=0.5)
-    line2, = axarr[0,0].plot(test_data[1440:(1440+168*multi[0]), 0], label='actual', alpha=0.5)
+    line2, = axarr[0,0].plot(test_target[:168*multi[0], 0], label='actual', alpha=0.5)
     axarr[0,0].set_title('pred vs actual 1 step')
     axarr[0,0].set_ylabel('load')
 
     axarr[0,1].plot(predictions[:168*multi[1]], label='pred', alpha=0.5)
-    axarr[0,1].plot(test_data[1440:(1440+168*multi[1]), 0], label='actual', alpha=0.5)
+    axarr[0,1].plot(test_target[:168*multi[1], 0], label='actual', alpha=0.5)
     axarr[0,1].set_title('pred vs actual 3 step')
     axarr[0,1].set_ylabel('load')
 
     axarr[1,0].plot(predictions[:168*multi[2]], label='pred', alpha=0.5)
-    axarr[1,0].plot(test_data[1440:(1440+168*multi[2]), 0], label='actual', alpha=0.5)
+    axarr[1,0].plot(test_target[:168*multi[2], 0], label='actual', alpha=0.5)
     axarr[1,0].set_title('pred vs actual 5 step')
     axarr[1,0].set_xlabel('periods')
     axarr[1,0].set_ylabel('load')
 
     axarr[1,1].plot(predictions[:168*multi[3]], label='pred', alpha=0.5)
-    axarr[1,1].plot(test_data[1440:(1440+168*multi[3]), 0], label='actual', alpha=0.5)
+    axarr[1,1].plot(test_target[:168*multi[3], 0], label='actual', alpha=0.5)
     axarr[1,1].set_title('pred vs actual 10 step')
     axarr[1,1].set_xlabel('periods')
     axarr[1,1].set_ylabel('load')
@@ -133,44 +101,6 @@ def pred_multiplot2(model, test_data, steps=10, multi=[1, 3, 5, 10],
 
     f.subplots_adjust(hspace=0.7)
     plt.show()
-
-# def pred_multiplot2_rev(model, test_data, steps=10, multi=[1, 3, 5, 10],
-#                     lookback=1440, delay=24):
-#     test_gen = generator(test_data,
-#                          lookback=lookback,
-#                          delay=delay,
-#                          min_index=0,
-#                          max_index=None)
-#     predictions = model.predict_generator(test_gen, steps=steps)
-#
-#     f, axarr = plt.subplots(2, 2, sharex=False)
-#
-#     line1, = axarr[0,0].plot(predictions[:168*multi[0]], label='pred', alpha=0.5)
-#     line2, = axarr[0,0].plot(test_data[:(168*multi[0]), 0], label='actual', alpha=0.5)
-#     axarr[0,0].set_title('pred vs actual 1 step')
-#     axarr[0,0].set_ylabel('load')
-#
-#     axarr[0,1].plot(predictions[:168*multi[1]], label='pred', alpha=0.5)
-#     axarr[0,1].plot(test_data[:(168*multi[1]), 0], label='actual', alpha=0.5)
-#     axarr[0,1].set_title('pred vs actual 3 step')
-#     axarr[0,1].set_ylabel('load')
-#
-#     axarr[1,0].plot(predictions[:168*multi[2]], label='pred', alpha=0.5)
-#     axarr[1,0].plot(test_data[:(168*multi[2]), 0], label='actual', alpha=0.5)
-#     axarr[1,0].set_title('pred vs actual 5 step')
-#     axarr[1,0].set_xlabel('periods')
-#     axarr[1,0].set_ylabel('load')
-#
-#     axarr[1,1].plot(predictions[:168*multi[3]], label='pred', alpha=0.5)
-#     axarr[1,1].plot(test_data[:(168*multi[3]), 0], label='actual', alpha=0.5)
-#     axarr[1,1].set_title('pred vs actual 10 step')
-#     axarr[1,1].set_xlabel('periods')
-#     axarr[1,1].set_ylabel('load')
-#
-#     plt.figlegend([line1, line2], ['pred', 'actual'], 'lower center')
-#
-#     f.subplots_adjust(hspace=0.7)
-#     plt.show()
 
 
 # new generator function for samples and targets
@@ -257,7 +187,7 @@ def mape(y_true, y_pred):
     return np.mean(np.abs(np.subtract(y_true, y_pred)/y_true))
 
 # plot metric over prediction horizon per step
-def pred_plot_per_step2(test_data, model, steps=52, lookback=1440, delay=24, metric='mape'):
+def pred_plot_per_step(test_data, model, steps=52, lookback=336, delay=0, metric='mape'):
     test_gen = generator(test_data,
                          lookback=lookback,
                          delay=delay,
@@ -271,13 +201,13 @@ def pred_plot_per_step2(test_data, model, steps=52, lookback=1440, delay=24, met
     y_p = []
     if metric == 'mae':
         for i in range(steps):
-            a1, a2 = test_data[(1440+i*168): (1440+(i+1)*168), 0], predictions[i*168: (i+1)*168].flatten()
+            a1, a2 = test_data[(0+i*168): (0+(i+1)*168), 0], predictions[i*168: (i+1)*168].flatten()
             err_hist.append(mean_abs_err(a1, a2))
             y_t.append(a1)
             y_p.append(a2)
     elif metric == 'mape':
         for i in range(steps):
-            a1, a2 = test_data[(1440+i*168): (1440+(i+1)*168), 0], predictions[i*168: (i+1)*168].flatten()
+            a1, a2 = test_data[(0+i*168): (0+(i+1)*168), 0], predictions[i*168: (i+1)*168].flatten()
             err_hist.append(mape(a1, a2))
             y_t.append(a1)
             y_p.append(a2)
@@ -289,8 +219,9 @@ def pred_plot_per_step2(test_data, model, steps=52, lookback=1440, delay=24, met
     plt.show()
     # return y_t, y_p, err_hist
 
+
 # calculate MAPE for specified forecast horizons
-def mape_rpt2(test_data, model, steps=[1, 3, 10], lookback=1440, delay=24):
+def mape_rpt(test_data, model, steps=[1, 3, 10], lookback=336, delay=0):
     test_gen = generator(test_data,
                          lookback=lookback,
                          delay=delay,
@@ -300,18 +231,18 @@ def mape_rpt2(test_data, model, steps=[1, 3, 10], lookback=1440, delay=24):
     predictions = model.predict_generator(test_gen, steps=max_step)
     # print(len(predictions))
     print('test mape {} step: {:.5f}'.format(steps[0],
-                                             mape(test_data[1440:(1440+steps[0]*168), 0],
+                                             mape(test_data[0:(0+steps[0]*168), 0],
                                                   predictions[:168*steps[0]].flatten())))
     print('test mape {} step: {:.5f}'.format(steps[1],
-                                             mape(test_data[1440:(1440 + steps[1] * 168), 0],
+                                             mape(test_data[0:(0 + steps[1] * 168), 0],
                                                   predictions[:168 * steps[1]].flatten())))
     print('test mape {} step: {:.5f}'.format(steps[2],
-                                             mape(test_data[1440:(1440 + steps[2] * 168), 0],
+                                             mape(test_data[0:(0 + steps[2] * 168), 0],
                                                   predictions[:168 * steps[2]].flatten())))
 
 
-def pred_plot2(test_data, model, savename=None, savefile=False,
-               lookback=1440, delay=0, pre_scaled_data=None, steps=[1]):
+def pred_plot(test_data, model, savename=None, savefile=False,
+               lookback=336, delay=0, pre_scaled_data=None, steps=[1]):
     test_gen = generator(test_data,
                          lookback=lookback,
                          delay=delay,
@@ -328,10 +259,10 @@ def pred_plot2(test_data, model, savename=None, savefile=False,
 
     if len(steps) == 1:
         pred_to_plot = rescale(predictions[:168 * steps])
-        actual_to_plot = rescale(test_data[1440:(1440 + 168 * steps), 0])
+        actual_to_plot = rescale(test_data[0:(0 + 168 * steps), 0])
     elif len(steps) == 2:
         pred_to_plot = rescale(predictions[168 * steps[0]:168 * steps[1]])
-        actual_to_plot = rescale(test_data[(1440 + 168 * steps[0]):(1440 + 168 * steps[1]), 0])
+        actual_to_plot = rescale(test_data[(0 + 168 * steps[0]):(0 + 168 * steps[1]), 0])
     else:
         print('steps need to be increasing sequence of 2 numbers')
 
@@ -345,3 +276,5 @@ def pred_plot2(test_data, model, savename=None, savefile=False,
         plt.savefig(savename, dpi=800)
     else:
         plt.show()
+
+

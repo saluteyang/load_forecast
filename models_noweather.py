@@ -49,17 +49,6 @@ joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
 joined = joined.dropna()
 
-# create lagged variables
-# joined = joined.merge(joined.groupby(joined.index.date)['COAST'].mean().to_frame(),
-#                                 left_on='Date', right_index=True,
-#                                 suffixes=['_Hourly', '_DailyAve'])  # syntax different from join method
-# joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
-# joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
-# joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
-#
-# joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
-# joined = joined.dropna()
-
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
 # test_data = pd.concat([train_data[-1440:],
@@ -74,7 +63,7 @@ test_data = scaler.transform(test_data.values)
 # test_data = test_data[~np.isnan(test_data).any(axis=1)]
 #######################################
 
-lookback = 1440  # 60 days
+lookback = 336  # 14 days
 delay = 0  # how far into the future is the target
 
 train_gen = generator(train_data,
@@ -124,7 +113,7 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 
 loss_plot(history=history, skip_epoch=0)
 pred_plot(model=model, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
-pred_multiplot2(model, test_data)
+pred_multiplot(model, test_data)
 
 with open(f"models/dense_80-40_wd_do_lr_adam_fin.pickle", "rb") as pfile:
     exec(f"model = pickle.load(pfile)")
@@ -177,16 +166,8 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[:168*10, 0].mean()))
 
 loss_plot(history=history_rnn, skip_epoch=0)
 pred_plot(model=model_rnn, test=test_gen, test_target=test_data[:, 0], pred_periods=48)
-pred_multiplot2(model_rnn, test_data)
+pred_multiplot(model_rnn, test_data)
 
-predictions = model_rnn.predict_generator(test_gen, steps=52)
-
-err_hist_rnn = []
-for i in range(52):
-    a1, a2 = predictions[i*168: (i+1)*168].flatten(), test_data[i*168: (i+1)*168, 0]
-    err_hist_rnn.append(mean_abs_err(a1, a2))
-plt.plot(err_hist_rnn)
-plt.show()
 
 # with open(f'models/rnn_10_rev.pickle', 'wb') as pfile:
 #     pickle.dump(model_rnn, pfile)
@@ -243,9 +224,9 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*10), 0]
 # test accuracy: 0.83246 (3 step, with dummies no weather, rnn)
 # test accuracy: 0.84447 (10 step, with dummies no weather, rnn)
 
-# y_t, y_p, err = pred_plot_per_step2(test_data, model_rnn)
-pred_plot_per_step2(test_data, model_rnn)
-mape_rpt2(test_data, model_rnn)
+# y_t, y_p, err = pred_plot_per_step(test_data, model_rnn)
+pred_plot_per_step(test_data, model_rnn)
+mape_rpt(test_data, model_rnn)
 
 # average MAPE over 52 steps 10.1% (RNN)
 
@@ -253,22 +234,22 @@ mape_rpt2(test_data, model_rnn)
 # test mape 3 step: 0.13670
 # test mape 10 step: 0.11217
 
-pred_plot_per_step2(test_data, model_crnn)
-pred_plot_per_step2(test_data, model_crnn, metric='mae')
-pred_plot_per_step2(test_data, model_rnn)
-pred_plot_per_step2(test_data, model_rnn, metric='mae')
-mape_rpt2(test_data, model_crnn)
+# pred_plot_per_step(test_data, model_crnn)
+# pred_plot_per_step(test_data, model_crnn, metric='mae')
+pred_plot_per_step(test_data, model_rnn)
+pred_plot_per_step(test_data, model_rnn, metric='mae')
+# mape_rpt(test_data, model_crnn)
 
 # test mape 1 step: 0.20159
 # test mape 3 step: 0.17606
 # test mape 10 step: 0.17760
 
-pred_multiplot2(model_rnn, test_data)
-pred_multiplot2(model_crnn, test_data)
+pred_multiplot(model_rnn, test_data)
+# pred_multiplot(model_crnn, test_data)
 
 # single plot prediction vs actual
-pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[1])
-pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
-pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[10,11])
-pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])
-pred_plot2(test_data, model_rnn, pre_scaled_data=joined, steps=[32,33])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[10,11])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[32,33])
