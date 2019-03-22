@@ -32,14 +32,14 @@ region = 'COAST'
 cols = [x for x in joined.columns if x!=region]
 
 # create indicator variables
-joined['Hour_Num'] = joined.index.hour
-joined['Day_Num'] = joined.index.weekday  # Monday is 0
-joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
+# joined['Hour_Num'] = joined.index.hour
+# joined['Day_Num'] = joined.index.weekday  # Monday is 0
+# joined['Month'] = joined.index.month
+# joined['Day'] = joined.index.day
+# joined['Week_Year'] = joined.index.weekofyear
 joined['Date'] = joined.index.date
-joined['Month'] = joined.index.month
-joined['Day'] = joined.index.day
+joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
 joined['Day_Year'] = joined.index.dayofyear
-joined['Week_Year'] = joined.index.weekofyear
 
 # add holidays flag
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
@@ -194,10 +194,12 @@ with open(f"models/rnn_20_wd_nw.pickle", "rb") as pfile:
 with open(f"models/rnn_20_wd_nw_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
-with open(f"models/rnn_20_wd_nw2.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_336lb_nd.pickle", "rb") as pfile:
     exec(f"model_rnn = pickle.load(pfile)")
-with open(f"models/rnn_20_wd_nw2_hist.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_336lb_nd_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
+
+loss_plot(history=history_rnn, skip_epoch=1)
 
 test_gen = generator(test_data,
                      lookback=lookback,
@@ -224,28 +226,22 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*10), 0]
 # test accuracy: 0.83246 (3 step, with dummies no weather, rnn)
 # test accuracy: 0.84447 (10 step, with dummies no weather, rnn)
 
-# y_t, y_p, err = pred_plot_per_step(test_data, model_rnn)
-pred_plot_per_step(test_data, model_rnn)
-mape_rpt(test_data, model_rnn)
+y_t, y_p, err = pred_plot_per_step(test_data, model_rnn)
 
-# average MAPE over 52 steps 10.1% (RNN)
-
-# test mape 1 step: 0.18928
-# test mape 3 step: 0.13670
-# test mape 10 step: 0.11217
-
-# pred_plot_per_step(test_data, model_crnn)
-# pred_plot_per_step(test_data, model_crnn, metric='mae')
 pred_plot_per_step(test_data, model_rnn)
 pred_plot_per_step(test_data, model_rnn, metric='mae')
-# mape_rpt(test_data, model_crnn)
+mape_rpt(test_data, model_rnn)
+pred_multiplot(model_rnn, test_data)
+
+# Average mape over the forecast horizon is 0.246335 (rnn_20_wd_nw_336lb)
+# Average mape over the forecast horizon is 0.247127 (rnn_20_wd_nw_336lb_2dum)
+# Average mape over the forecast horizon is 0.242175 (crnn_20_wd_nw_336lb_2dum)
+# Average mape over the forecast horizon is 0.245870 (crnn_20_wd_nw_336lb_2dum_do)
+# Average mape over the forecast horizon is 0.244773 (crnn_20_wd_nw_336lb_2dum_mapeloss)
 
 # test mape 1 step: 0.20159
 # test mape 3 step: 0.17606
 # test mape 10 step: 0.17760
-
-pred_multiplot(model_rnn, test_data)
-# pred_multiplot(model_crnn, test_data)
 
 # single plot prediction vs actual
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1])
@@ -253,3 +249,16 @@ pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[10,11])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[32,33])
+
+test_gen = generator(test_data,
+                     lookback=lookback,
+                     delay=delay,
+                     min_index=0,
+                     max_index=None)
+
+predictions = model_rnn.predict_generator(test_gen, steps=52)
+
+plt.plot(predictions, alpha=0.5, label='prediction')
+plt.plot(test_data[:len(predictions), 0], alpha=0.5, label='actual')
+plt.legend()
+plt.show()

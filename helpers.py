@@ -64,7 +64,7 @@ def pred_plot(model, test, test_target, pred_periods):
     plt.legend()
     plt.show()
 
-def pred_multiplot(model, test_data, test_target, steps=10, multi=[1, 3, 5, 10],
+def pred_multiplot(model, test_data, steps=10, multi=[1, 3, 5, 10],
                    lookback=336, delay=0):
     test_gen = generator(test_data,
                          lookback=lookback,
@@ -76,23 +76,23 @@ def pred_multiplot(model, test_data, test_target, steps=10, multi=[1, 3, 5, 10],
     f, axarr = plt.subplots(2, 2, sharex=False)
 
     line1, = axarr[0,0].plot(predictions[:168*multi[0]], label='pred', alpha=0.5)
-    line2, = axarr[0,0].plot(test_target[:168*multi[0], 0], label='actual', alpha=0.5)
+    line2, = axarr[0,0].plot(test_data[:168*multi[0], 0], label='actual', alpha=0.5)
     axarr[0,0].set_title('pred vs actual 1 step')
     axarr[0,0].set_ylabel('load')
 
     axarr[0,1].plot(predictions[:168*multi[1]], label='pred', alpha=0.5)
-    axarr[0,1].plot(test_target[:168*multi[1], 0], label='actual', alpha=0.5)
+    axarr[0,1].plot(test_data[:168*multi[1], 0], label='actual', alpha=0.5)
     axarr[0,1].set_title('pred vs actual 3 step')
     axarr[0,1].set_ylabel('load')
 
     axarr[1,0].plot(predictions[:168*multi[2]], label='pred', alpha=0.5)
-    axarr[1,0].plot(test_target[:168*multi[2], 0], label='actual', alpha=0.5)
+    axarr[1,0].plot(test_data[:168*multi[2], 0], label='actual', alpha=0.5)
     axarr[1,0].set_title('pred vs actual 5 step')
     axarr[1,0].set_xlabel('periods')
     axarr[1,0].set_ylabel('load')
 
     axarr[1,1].plot(predictions[:168*multi[3]], label='pred', alpha=0.5)
-    axarr[1,1].plot(test_target[:168*multi[3], 0], label='actual', alpha=0.5)
+    axarr[1,1].plot(test_data[:168*multi[3], 0], label='actual', alpha=0.5)
     axarr[1,1].set_title('pred vs actual 10 step')
     axarr[1,1].set_xlabel('periods')
     axarr[1,1].set_ylabel('load')
@@ -258,10 +258,10 @@ def pred_plot(test_data, model, savename=None, savefile=False,
         return [x * (max_scale - min_scale) + min_scale for x in num_list]
 
     if len(steps) == 1:
-        pred_to_plot = rescale(predictions[:168 * steps])
-        actual_to_plot = rescale(test_data[0:(0 + 168 * steps), 0])
+        pred_to_plot = rescale(predictions[:(168 * steps[0])])
+        actual_to_plot = rescale(test_data[0:(0 + 168 * steps[0]), 0])
     elif len(steps) == 2:
-        pred_to_plot = rescale(predictions[168 * steps[0]:168 * steps[1]])
+        pred_to_plot = rescale(predictions[(168 * steps[0]):(168 * steps[1])])
         actual_to_plot = rescale(test_data[(0 + 168 * steps[0]):(0 + 168 * steps[1]), 0])
     else:
         print('steps need to be increasing sequence of 2 numbers')
