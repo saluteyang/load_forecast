@@ -281,11 +281,18 @@ plt.savefig('ts_decomp.png', dpi=1000, bbox_inches="tight")
 plt.show()
 
 # forecast next 168 hours
-future = m.make_future_dataframe(periods=168, freq='H')
+future = m.make_future_dataframe(periods=1680, freq='H')
 forecast = m.predict(future)
 fig_forecast = m.plot(forecast)
 
 plt.show()
+
+# forecast_save = forecast[forecast['ds'].dt.year==2017]
+# with open(f'prophet_forecast.pickle', 'wb') as pfile:
+#     pickle.dump(forecast_save, pfile)
+
+forecast_comp = forecast_save[['ds', 'yhat']]
+mape(aggregate_load['2017']['COAST'][:168], forecast_comp['yhat'][:168])
 
 # with open(f'prophet_model.pickle', 'wb') as pfile:
 #     pickle.dump(m, pfile)
