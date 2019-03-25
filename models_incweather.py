@@ -40,15 +40,29 @@ joined = aggregate_load.join(weather, how='inner')  # joining on index
 joined = joined.groupby(joined.index).first()  # duplicate index due to additional hour in Nov due to DST
 joined = joined[['COAST', 'Drybulb', 'Humidity']].dropna().copy()
 
-# create indicator variables
-joined['Hour_Num'] = joined.index.hour
-joined['Day_Num'] = joined.index.weekday  # Monday is 0
+# # create indicator variables
+# joined['Hour_Num'] = joined.index.hour
+# joined['Day_Num'] = joined.index.weekday  # Monday is 0
+# joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
+# joined['Date'] = joined.index.date
+# joined['Month'] = joined.index.month
+# joined['Day'] = joined.index.day
+# joined['Day_Year'] = joined.index.dayofyear
+# joined['Week_Year'] = joined.index.weekofyear
+#
+# us_holidays = holidays.UnitedStates()  # this creates a dictionary
+# joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
+# # to explicitly use the lambda function for the same effect as above
+# # joined['Holiday_Flag'] = [(lambda x: (x in us_holidays) * 1)(x) for x in joined['Date']]
+# joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
+# joined = joined.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
+# joined = joined.dropna()
+# int_cols = ['Hour_Num', 'Day_Num', 'Day', 'Month', 'Day_Year', 'Week_Year', 'Off_Flag', 'Drybulb', 'Humidity']
+# joined[int_cols] = joined[int_cols].applymap(lambda x: int(x))
+
 joined['Wknd_Flag'] = (joined.index.weekday > 4) * 1
 joined['Date'] = joined.index.date
-joined['Month'] = joined.index.month
-joined['Day'] = joined.index.day
 joined['Day_Year'] = joined.index.dayofyear
-joined['Week_Year'] = joined.index.weekofyear
 
 us_holidays = holidays.UnitedStates()  # this creates a dictionary
 joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
@@ -57,14 +71,14 @@ joined['Holiday_Flag'] = [(x in us_holidays) * 1 for x in joined['Date']]
 joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 joined = joined.drop(columns=['Date', 'Wknd_Flag', 'Holiday_Flag'])
 joined = joined.dropna()
-int_cols = ['Hour_Num', 'Day_Num', 'Day', 'Month', 'Day_Year', 'Week_Year', 'Off_Flag', 'Drybulb', 'Humidity']
+int_cols = ['Day_Year', 'Off_Flag']
 joined[int_cols] = joined[int_cols].applymap(lambda x: int(x))
 
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
-test_data = pd.concat([train_data[-1440:],
-                      joined[joined.index.year == 2017]])
-# test_data = joined[joined.index.year == 2017]
+# test_data = pd.concat([train_data[-1440:],
+#                       joined[joined.index.year == 2017]])
+test_data = joined[joined.index.year == 2017]
 
 # added section for standardization
 scaler = preprocessing.MinMaxScaler()
@@ -72,8 +86,8 @@ train_data = scaler.fit_transform(train_data)
 test_data = scaler.transform(test_data)
 
 # create generators using udf in helpers file
-lookback = 1440  # 60 days
-delay = 24  # how far into the future is the target
+lookback = 336  # 60 days
+delay = 0  # how far into the future is the target
 
 # new generator function for samples and targets
 # move the target variable (regional load to predict) to the first column position

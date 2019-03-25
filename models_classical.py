@@ -8,6 +8,7 @@ import pandas as pd
 import holidays
 import pickle
 from fbprophet import Prophet
+from helpers import *
 
 sns.set()
 
@@ -303,3 +304,5 @@ test = aggregate_load['2017']['COAST'][:168]
 plt.plot(forecast_wk['yhat'].values)
 plt.plot(test.reset_index()['COAST'].values)
 plt.show()
+
+mape(test.reset_index()['COAST'].values, forecast_wk['yhat'].values)

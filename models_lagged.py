@@ -58,6 +58,11 @@ joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(1, 'd').to_frame()
 joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
 joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(1, 'd').to_frame()
 
+# forecast 2 days ahead
+# joined['COAST_Hourly_Pre_Day'] = joined['COAST_Hourly'].shift(2, 'd').to_frame()
+# joined['COAST_Hourly_Pre_Wk_Day'] = joined['COAST_Hourly'].shift(7, 'd').to_frame()
+# joined['COAST_DailyAve_Pre_Day'] = joined['COAST_DailyAve'].shift(2, 'd').to_frame()
+
 # joined[joined.isnull().any(axis=1)]
 joined = joined.dropna()
 joined = joined.drop(columns=['Date', 'COAST_DailyAve', 'Wknd_Flag', 'Holiday_Flag'])
@@ -122,9 +127,12 @@ y_pred = model1.predict(test_data)
 print('training accuracy: {:.3f}'.format(model1.score(train_data, train_target)))
 print('test accuracy: {:.3f}'.format(model1.score(test_data, test_target)))
 
-mape(test_target[:48], y_pred[:48])
-# 0.02900 (for 24 hours ahead)
-# 0.02645 (for 48 hours ahead)
+mape(test_target[:24], y_pred[:24])
+# 0.02900 (for next 24 hours)
+# 0.02645 (for next 48 hours)
+
+# 0.03515 (for next 24 hours, forecasting 2 days ahead)
+# 0.03903 (for next 48 hours, forecasting 2 days ahead)
 
 # plot daily forecast MAPE over horizon
 plt.clf()

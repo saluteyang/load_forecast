@@ -219,6 +219,45 @@ def pred_plot_per_step(test_data, model, steps=52, lookback=336, delay=0, metric
     plt.show()
     # return y_t, y_p, err_hist
 
+def pred_plot_per_step_rev(test_data, model, steps=52, lookback=336, delay=0, metric='mape', pre_scaled_data=None):
+    test_gen = generator(test_data,
+                         lookback=lookback,
+                         delay=delay,
+                         min_index=0,
+                         max_index=None)
+
+    predictions = model.predict_generator(test_gen, steps=steps)
+
+    def rescale(num_list):
+        min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
+        max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
+        return [x * (max_scale - min_scale) + min_scale for x in num_list]
+
+    err_hist = []
+    y_t = []
+    y_p = []
+    if metric == 'mae':
+        for i in range(steps):
+            a1 = rescale(test_data[(0+i*168): (0+(i+1)*168), 0])
+            a2 = rescale(predictions[i*168: (i+1)*168].flatten())
+            err_hist.append(mean_abs_err(a1, a2))
+            y_t.append(a1)
+            y_p.append(a2)
+    elif metric == 'mape':
+        for i in range(steps):
+            a1 = rescale(test_data[(0+i*168): (0+(i+1)*168), 0])
+            a2 = rescale(predictions[i*168: (i+1)*168].flatten())
+            err_hist.append(mape(a1, a2))
+            y_t.append(a1)
+            y_p.append(a2)
+    else:
+        print('This metric is not defined')
+
+    print('Average {} over the forecast horizon is {:5f}'.format(metric, np.mean(err_hist)))
+    plt.plot(err_hist)
+    plt.show()
+    # return y_t, y_p, err_hist
+
 
 # calculate MAPE for specified forecast horizons
 def mape_rpt(test_data, model, steps=[1, 3, 10], lookback=336, delay=0):

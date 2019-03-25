@@ -189,14 +189,14 @@ with open(f"models/crnn_20_wd_nw_32.pickle", "rb") as pfile:
 with open(f"models/crnn_20_wd_nw_32_hist.pickle", "rb") as pfile:
     exec(f"history_crnn = pickle.load(pfile)")
 
-with open(f"models/rnn_20_wd_nw.pickle", "rb") as pfile:
+with open(f"models/rnn_20_wd_ww_336lb_reg.pickle", "rb") as pfile:
     exec(f"model_rnn = pickle.load(pfile)")
-with open(f"models/rnn_20_wd_nw_hist.pickle", "rb") as pfile:
+with open(f"models/rnn_20_wd_ww_336lb_reg_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
-with open(f"models/crnn_20_wd_nw_336lb_nd.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_336lb_2dum.pickle", "rb") as pfile:
     exec(f"model_rnn = pickle.load(pfile)")
-with open(f"models/crnn_20_wd_nw_336lb_nd_hist.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_336lb_2dum_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
 loss_plot(history=history_rnn, skip_epoch=1)
@@ -226,9 +226,10 @@ print('test accuracy: {:.5f}'.format(1-test_mae/test_data[1440:(1440+168*10), 0]
 # test accuracy: 0.83246 (3 step, with dummies no weather, rnn)
 # test accuracy: 0.84447 (10 step, with dummies no weather, rnn)
 
-y_t, y_p, err = pred_plot_per_step(test_data, model_rnn)
+y_t, y_p, err = pred_plot_per_step_rev(test_data, model_rnn, pre_scaled_data=joined)
 
 pred_plot_per_step(test_data, model_rnn)
+pred_plot_per_step_rev(test_data, model_rnn, pre_scaled_data=joined)
 pred_plot_per_step(test_data, model_rnn, metric='mae')
 mape_rpt(test_data, model_rnn)
 pred_multiplot(model_rnn, test_data)
@@ -238,6 +239,8 @@ pred_multiplot(model_rnn, test_data)
 # Average mape over the forecast horizon is 0.242175 (crnn_20_wd_nw_336lb_2dum)
 # Average mape over the forecast horizon is 0.245870 (crnn_20_wd_nw_336lb_2dum_do)
 # Average mape over the forecast horizon is 0.244773 (crnn_20_wd_nw_336lb_2dum_mapeloss)
+# Average mape over the forecast horizon is 0.246188 (rnn_20_wd_nw_336lb_bd)
+# Average mape over the forecast horizon is 0.251149 (rnn_20_wd_ww_336lb_reg)
 
 # test mape 1 step: 0.20159
 # test mape 3 step: 0.17606
@@ -246,7 +249,7 @@ pred_multiplot(model_rnn, test_data)
 # single plot prediction vs actual
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
-pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[10,11])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[9,12])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[32,33])
 
@@ -258,7 +261,29 @@ test_gen = generator(test_data,
 
 predictions = model_rnn.predict_generator(test_gen, steps=52)
 
+mape(test_data[:168, 0], predictions[:168].flatten())
+
 plt.plot(predictions, alpha=0.5, label='prediction')
 plt.plot(test_data[:len(predictions), 0], alpha=0.5, label='actual')
 plt.legend()
 plt.show()
+
+# continued from models_classical script (need whole year prophet forecast)
+forecast_yr = forecast[forecast['ds'].dt.year==2017]
+
+plt.plot(rescale(test_data[:, 0], joined), label='actual')
+plt.plot(forecast_yr['yhat'].tolist(), label='actual')
+plt.legend()
+plt.show()
+
+df_comp = pd.DataFrame({'fb_pred': forecast_wk['yhat'].values,
+                       'rnn_pred': rescale(predictions[:168].flatten(), joined),
+                       'actual': rescale(test_data[:168, 0], joined)})
+df_comp['fb_actual'] = df_comp['fb_pred'] - df_comp['actual']
+df_comp['rnn_actual'] = df_comp['rnn_pred'] - df_comp['actual']
+
+# to rescale (inverse of minmax scaler)
+def rescale(num_list, pre_scaled_data):
+    min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
+    max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
+    return [x * (max_scale - min_scale) + min_scale for x in num_list]
