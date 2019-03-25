@@ -48,6 +48,8 @@ joined['Off_Flag'] = joined[['Wknd_Flag', 'Holiday_Flag']].max(axis=1)
 
 joined = joined.drop(columns=cols + ['Date', 'Wknd_Flag', 'Holiday_Flag'])
 joined = joined.dropna()
+int_cols = ['Day_Year', 'Off_Flag']
+joined[int_cols] = joined[int_cols].applymap(lambda x: int(x))
 
 # create training and testing data sets, generator will separate out the features and target
 train_data = joined[joined.index.year != 2017]
@@ -121,13 +123,28 @@ with open(f"models/dense_80-40_wd_do_lr_adam_fin_hist.pickle", "rb") as pfile:
     exec(f"history = pickle.load(pfile)")
 
 # the RNN models ####################################################################
+import keras.backend as K
+import keras.losses
+
+
+def tilted_loss(q,y,f):
+    e = (y-f)
+    return K.mean(K.maximum(q*e, (q-1)*e), axis=-1)
+
+quantile = 0.5
 
 def build_rnn():
     model = models.Sequential()
-    model.add(layers.GRU(64, input_shape=(None, train_data.shape[-1])))
+    model.add(layers.Conv1D(32, 5, activation='relu',
+                            input_shape=(None, train_data.shape[-1])))
+    model.add(layers.MaxPooling1D(3))
+    model.add(layers.Conv1D(32, 5, activation='relu'))
+    model.add(layers.GRU(32))
+    # model.add(layers.GRU(32, input_shape=(None, train_data.shape[-1])))
     # model.add(layers.GRU(64, input_shape=(None, 1)))
     model.add(layers.Dense(1))
-    model.compile(optimizer='rmsprop', loss='mse', metrics=['mae'])
+    # model.compile(optimizer='rmsprop', loss='mse', metrics=['mae'])
+    model.compile(optimizer='rmsprop', loss=lambda y,f: tilted_loss(quantile,y,f), metrics=['mae'])
     return model
 
 model_rnn = build_rnn()
@@ -137,11 +154,10 @@ history_rnn = model_rnn.fit_generator(train_gen,
                                       steps_per_epoch=365,
                                       epochs=20,
                                       validation_data=val_gen,
-                                      validation_steps=50
-                                      # callbacks=[
-                                      #     callbacks.EarlyStopping(patience=5, verbose=1,
-                                      #                             restore_best_weights=True)
-                                      # ]
+                                      validation_steps=50,
+                                        callbacks = [
+                                            callbacks.ReduceLROnPlateau(factor=.5, patience=3, verbose=1)
+                                        ]
                                       )
 
 test_gen = generator(test_data,
@@ -194,10 +210,12 @@ with open(f"models/rnn_20_wd_ww_336lb_reg.pickle", "rb") as pfile:
 with open(f"models/rnn_20_wd_ww_336lb_reg_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
-with open(f"models/crnn_20_wd_nw_336lb_2dum.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_336lb_q50.pickle", "rb") as pfile:
     exec(f"model_rnn = pickle.load(pfile)")
-with open(f"models/crnn_20_wd_nw_336lb_2dum_hist.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_336lb_q50_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
+
+# model_rnn = keras.models.load_model('models/crnn_20_wd_nw_336lb_q50.h5', custom_objects={'tilted_loss':tilted_loss})
 
 loss_plot(history=history_rnn, skip_epoch=1)
 
@@ -242,12 +260,15 @@ pred_multiplot(model_rnn, test_data)
 # Average mape over the forecast horizon is 0.246188 (rnn_20_wd_nw_336lb_bd)
 # Average mape over the forecast horizon is 0.251149 (rnn_20_wd_ww_336lb_reg)
 
+# Average mape over the forecast horizon is 0.099116 (crnn_20_wd_nw_336lb_w)
+# Average mape over the forecast horizon is 0.121930 (models/crnn_20_wd_nw_336lb_sc)
+
 # test mape 1 step: 0.20159
 # test mape 3 step: 0.17606
 # test mape 10 step: 0.17760
 
 # single plot prediction vs actual
-pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1])
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1], savefile=True, savename='crnn_final_wk.png')
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[9,12])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])

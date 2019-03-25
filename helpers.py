@@ -229,8 +229,8 @@ def pred_plot_per_step_rev(test_data, model, steps=52, lookback=336, delay=0, me
     predictions = model.predict_generator(test_gen, steps=steps)
 
     def rescale(num_list):
-        min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
-        max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
+        min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017].iloc[:, 0])
+        max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017].iloc[:, 0])
         return [x * (max_scale - min_scale) + min_scale for x in num_list]
 
     err_hist = []
@@ -292,8 +292,8 @@ def pred_plot(test_data, model, savename=None, savefile=False,
 
     # to rescale the predictions
     def rescale(num_list):
-        min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
-        max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017]['COAST'])
+        min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017].iloc[:, 0])
+        max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017].iloc[:, 0])
         return [x * (max_scale - min_scale) + min_scale for x in num_list]
 
     if len(steps) == 1:
