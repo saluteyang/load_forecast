@@ -4,6 +4,8 @@ import holidays
 from keras import models, layers, callbacks
 import os
 from sklearn import preprocessing
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import pickle
 
 import seaborn as sns
@@ -201,13 +203,13 @@ with open(f"models/rnn_20_wd_fin_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
 with open(f"models/crnn_20_wd_nw_32.pickle", "rb") as pfile:
-    exec(f"model_crnn = pickle.load(pfile)")
-with open(f"models/crnn_20_wd_nw_32_hist.pickle", "rb") as pfile:
-    exec(f"history_crnn = pickle.load(pfile)")
-
-with open(f"models/rnn_20_wd_ww_336lb_reg.pickle", "rb") as pfile:
     exec(f"model_rnn = pickle.load(pfile)")
-with open(f"models/rnn_20_wd_ww_336lb_reg_hist.pickle", "rb") as pfile:
+with open(f"models/crnn_20_wd_nw_32_hist.pickle", "rb") as pfile:
+    exec(f"history_rnn = pickle.load(pfile)")
+
+with open(f"models/crnn_20_wd_nw_336lb_2dum_mapeloss.pickle", "rb") as pfile:
+    exec(f"model_rnn = pickle.load(pfile)")
+with open(f"models/crnn_20_wd_nw_336lb_2dum_mapeloss_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
 with open(f"models/crnn_20_wd_nw_336lb_q50.pickle", "rb") as pfile:
@@ -216,6 +218,44 @@ with open(f"models/crnn_20_wd_nw_336lb_q50_hist.pickle", "rb") as pfile:
     exec(f"history_rnn = pickle.load(pfile)")
 
 # model_rnn = keras.models.load_model('models/crnn_20_wd_nw_336lb_q50.h5', custom_objects={'tilted_loss':tilted_loss})
+
+with open(f"models/rnn_q50_pred_step1.pickle", "rb") as pfile:
+    exec(f"predictions = pickle.load(pfile)")
+with open(f"models/rnn_q95_pred_step1.pickle", "rb") as pfile:
+    exec(f"predictions95 = pickle.load(pfile)")
+with open(f"models/rnn_q05_pred_step1.pickle", "rb") as pfile:
+    exec(f"predictions05 = pickle.load(pfile)")
+
+test_gen = generator(test_data,
+                     lookback=lookback,
+                     delay=delay,
+                     min_index=0,
+                     max_index=None)
+predictions_m = model_rnn.predict_generator(test_gen, steps=1)
+
+def rescale(num_list, pre_scaled_data):
+    min_scale = min(pre_scaled_data[pre_scaled_data.index.year != 2017].iloc[:, 0])
+    max_scale = max(pre_scaled_data[pre_scaled_data.index.year != 2017].iloc[:, 0])
+    return [x * (max_scale - min_scale) + min_scale for x in num_list]
+
+# plt.plot(rescale(predictions_m, joined), label='mean')
+plt.clf()
+plt.xlabel('Hour')
+plt.ylabel('GW')
+plt.ylim((7, 16))
+plt.plot(rescale(predictions_m.flatten(), joined), '--', c='red', label='prediction')
+plt.gca().margins(x=0)
+plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(24))
+# plt.gca().yaxis.set_major_locator(ticker.MultipleLocator(2))
+plt.gca().fill_between(list(range(168)), rescale(predictions05.flatten(), joined), rescale(predictions95.flatten(), joined),
+                       facecolors='b', alpha=0.3)
+# plt.plot(rescale(predictions95.flatten(), joined), label='q95')
+# plt.plot(rescale(predictions05.flatten(), joined), label='q05')
+plt.plot(rescale(test_data[:168, 0], joined), '-', c='black', label='actual')
+plt.legend(loc=2)
+plt.show()
+plt.savefig('quantile_rnn_168.png', dpi=800)
+
 
 loss_plot(history=history_rnn, skip_epoch=1)
 
@@ -268,7 +308,7 @@ pred_multiplot(model_rnn, test_data)
 # test mape 10 step: 0.17760
 
 # single plot prediction vs actual
-pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1], savefile=True, savename='crnn_final_wk.png')
+pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[1])  #, savefile=True, savename='crnn_final_wk.png')
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[3])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[9,12])
 pred_plot(test_data, model_rnn, pre_scaled_data=joined, steps=[20,21])

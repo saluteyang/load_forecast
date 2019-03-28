@@ -154,13 +154,17 @@ plt.clf()
 # plt.plot(y_lower[:168], '-', y_upper[:168], '-')
 plt.xlabel('Hour')
 plt.ylabel('GW')
+plt.ylim((7, 16))
+plt.gca().margins(x=0)
+plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(24))
+plt.gca().yaxis.set_major_locator(ticker.MultipleLocator(2))
 plt.gca().fill_between(range(len(y_upper[:168])), y_lower[:168], y_upper[:168],
                        facecolors='b', alpha=0.3)
 plt.plot(range(len(y_upper[:168])), y_pred[:168], '--', c='red', label='prediction')
 plt.plot(range(len(y_upper[:168])), test_target[:168], '-', c='black', label='actual')
 plt.legend(loc=2)
+plt.show()
 plt.savefig('quantile_reg_168.png', dpi=800)
-# plt.show()
 
 # number of times upper and lower were breached
 # temp = [x-y for x, y in zip(y_upper, test_target)]
